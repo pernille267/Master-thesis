@@ -342,8 +342,8 @@ grid.arrange(plot5a, plot5d, nrow = 1)
 grid.arrange(plot5b, plot5e, nrow = 1)
 grid.arrange(plot5c, plot5f, nrow = 1)
 
-#7##### Methods of evaluation 2 :  Bland-Altman and polynomial regression (Needs work)
-#8###### Deming regression function ############################################
+#7##### Methods of evaluation 2 :  Bland-Altman and polynomial regression (Needs work) ################
+#8##### Deming regression function ############################################
 
 errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u", sigma.uu = "u", sigma.ee = "u", b0 = "u",
                                    k = "u", replicates = 3, omit = FALSE, fit.vector = c(0))
@@ -463,7 +463,7 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
   sigma = c(sigma.ee, sigma.uu, sigma.ll, sigma.det)), fit.values = fit.values))
          
 } # Basics
-#9###### Methods of evaluation 3 : Deming regression prediction function #################################
+#9##### Methods of evaluation 3 : Deming regression prediction function #################################
 
 # Three examples on Deming regression with estimated lambda
 d1 <- errors.in.variables.lm(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)
@@ -533,7 +533,7 @@ pidr.dim.cob <- errors.in.variables.pi(method.A = patients.dim.cob$A, method.B =
 pidr.arc.adv <- errors.in.variables.pi(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B, level = 0.99)
 pidr.adv.dim <- errors.in.variables.pi(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, level = 0.99)
 
-############ Plots of deming with 99% prediction interval ######################
+#10#### Plots of deming with 99% prediction interval ######################
 plot6a <- ggplot() +
   geom_ribbon(data = pidr.dim.cob, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
   geom_line(data = pidr.dim.cob, aes(x = newdata, y = y.pred), size = 0.2, color = "black") +
@@ -630,9 +630,31 @@ get.commutability.plot.1(method.A.controls = controls.adv.dim$A, method.B.contro
 get.commutability.plot.1(method.A.controls = controls.dim.cob$A, method.B.controls = controls.dim.cob$B, method.A.patients = patients.dim.cob$A, method.B.patients = patients.dim.cob$B, method.names = c("Dimension", "Cobas"))
 get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.controls = controls.arc.adv$B, method.A.patients = patients.arc.adv$A, method.B.patients = patients.arc.adv$B, method.names = c("Architect", "Advia"))
 
-####### Simulation function ############################################
 
-a = 2
-b = 1
-c = 8
+####### Simulation studies ############################################
+set.seed(999)
+# Clinical samples, control material samples and replicates, respectively
+n <- 20; m <- 3; r <- 3
+# Coefficients in A = a*B^2 + b*B + c
+a <- 0.1; b <- 0.9; c <- 0.3
+# Range of measurement values
+lower.limit  <- 5
+upper.limit <- 15
+# Coefficients of variation
+CV.B <- 0.12
+CV.A <- 0.05
 
+simulate.samples <- function(n = 20, r = 3, a = 0, b = 1, c = 0, CV.A = 0.5, CV.B = 0.05, range = c(5,15))
+{
+  sample <- as.factor(rep(1:n, each = r))
+  replicat <- rep(1:r, each = 1, times = n)
+  lower <- range[1]
+  upper <- range[2]
+  x.true <- rep(runif(n, lower, upper), each = r) # Assumes latent variable to follow uniform distribution. Seems okay#
+  df <- data.frame(sample, replicate, x.true) %>% 
+    mutate(y.true = a + b * x.true + c * x.true^2) %>%
+    rowwise() %>%
+    mutate(B = x.true * (1 + rnorm(1, 0, CV.B))) %>%
+    mutate(A = y.true * (1 + rnorm(1, 0, CV.A)))
+  return(list(samples = df))
+}
