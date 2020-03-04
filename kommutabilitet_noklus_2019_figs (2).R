@@ -632,5 +632,7 @@ get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.contro
 
 ####### Simulation function ############################################
 
-
+a = 2
+b = 1
+c = 8
 
