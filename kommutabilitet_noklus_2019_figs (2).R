@@ -378,6 +378,9 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
   SS.AA <- (1/(n*r))*crossprod(gA-mA)[,] # Vector product, because it is easier
   SS.BB <- (1/(n*r))*crossprod(gB-mB)[,] # Vector product, because it is easier
   SS.BA <- (1/(n*r))*crossprod(gB-mB,gA-mA)[,] # Vector product, because it is easier
+  print(SS.AA)
+  print(SS.BB)
+  print(SS.BA)
 #########################################################
   if (lambda == "u" & sigma.ee != "u" & sigma.uu != "u") # if both sigmas are known
   {
@@ -449,12 +452,13 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
   variance.b1 <- (sigma.det) / (sigma.ll ^ 2)
   variance.b0 <- (mB^2)*((sigma.det)/(sigma.ll ^ 2)) + V
   covariance.b0.b1 <- - mB * variance.b1
+  print(variance.b1)
   std.error.b1 <- sqrt(variance.b1)
   std.error.b0 <- sqrt(variance.b0)
   cov.mat.b1.bo <- data.frame(row.names = c("b0","b1"), rbind(c(variance.b0, covariance.b0.b1), c(covariance.b0.b1, variance.b1))) %>%
     rename(b0 = X1, b1 = X2)
   
-  if (length(fit.vector) > 0) {fit.values <- rep(b0,100) + b1 * fit.vector}
+  if (length(fit.vector) > 0) {fit.values <- rep(b0,length(100)) + b1 * fit.vector}
   
   return(list(coefficients = data.frame(deming.coef = c(b0, b1), altern.coef = c(b0.,b1.)),
   lambdas = data.frame(row.names = c("estimated", "estimated/known"), lambda = c(lambda.hat,lambda.hat.)),
@@ -471,7 +475,7 @@ d2 <- errors.in.variables.lm(method.A = patients.arc.adv$A, method.B = patients.
 d3 <- errors.in.variables.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
 
 # Predictio interval for the regression line
-errors.in.variables.pi <- function(method.A = NULL, method.B = NULL, newdata = 1:100, level = 0.95)
+errors.in.variables.pi <- function(method.A = NULL, method.B = NULL, newdata = 1:25, level = 0.95)
 {
   alpha <- 1 - level
   l <- length(method.A)
@@ -496,7 +500,7 @@ errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.co
 errors.in.variables.pi(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B)
 errors.in.variables.pi(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)
 
-jackknife.univariate <- function(method.A = NULL, method.B = NULL, lambda = "u", estimator = "pred.se", fit = numeric(0))
+jackknife.univariate <- function(method.A = NULL, method.B = NULL, lambda = "u", estimator = "pred.se", fit = 1:25)
 {
   m <- length(method.A) # The number of pairs (A,B)
   n <- length(fit)
@@ -575,7 +579,7 @@ get.confidence.region <- function(method.A = NULL, method.B = NULL, replicates =
   if (normality == TRUE)
   {
     t <- qt(1 - alpha / 2, df = r-1)
-    df.A.B <- data.frame(sample = rep(1:n, r), replicat = sort(rep(1:r,n)), A = method.A, B = method.B) %>%
+    df.A.B <- data.frame(sample = rep(1:n, r), replicat = rep(1:r,n), A = method.A, B = method.B) %>%
       group_by(sample) %>%
       mutate(mA = mean(A), mB = mean(B)) %>%
       mutate(sd.A = sd(A), sd.B = sd(B))
@@ -605,10 +609,10 @@ get.confidence.region(method.A = controls.arc.adv$A, method.B = controls.arc.adv
 get.confidence.region(method.A = controls.adv.dim$A, method.B = controls.adv.dim$B, normality = T)
 
 # Commutability plot
-get.commutability.plot.1 <- function(method.A.controls = NULL, method.B.controls = NULL, method.A.patients = NULL, method.B.patients = NULL, level.pred = 0.99, level.conf = 0.95, replicates = 3, lambda = "u", method.names = c("method A","method B"))
+get.commutability.plot.1 <- function(method.A.controls = NULL, method.B.controls = NULL, method.A.patients = NULL, method.B.patients = NULL, level.pred = 0.99, level.conf = 0.95, replicates = 3, lambda = "u", method.names = c("method A","method B"), newdata = 1:25)
 {
   r <- replicates; n <- ceiling(length(method.A.patients)/r); m <- ceiling(length(method.A.controls)/r); N <- n*r; M <- m*r
-  pred <- errors.in.variables.pi(method.A = method.A.patients, method.B = method.B.patients)
+  pred <- errors.in.variables.pi(method.A = method.A.patients, method.B = method.B.patients, newdata = newdata)
   df.A.B.controls <- data.frame(sample = rep(1:m,r), replicat = sort(rep(1:r,m)), A = method.A.controls, B = method.B.controls) %>%
     bind_cols(get.confidence.region(method.A = method.A.controls, method.B = method.B.controls, level = level.conf))
   print(df.A.B.controls)
@@ -626,9 +630,9 @@ get.commutability.plot.1 <- function(method.A.controls = NULL, method.B.controls
   plot(cp)
 }
 
-get.commutability.plot.1(method.A.controls = controls.adv.dim$A, method.B.controls = controls.adv.dim$B, method.A.patients = patients.adv.dim$A, method.B.patients = patients.adv.dim$B, method.names = c("Advia", "Dimension"))
-get.commutability.plot.1(method.A.controls = controls.dim.cob$A, method.B.controls = controls.dim.cob$B, method.A.patients = patients.dim.cob$A, method.B.patients = patients.dim.cob$B, method.names = c("Dimension", "Cobas"))
-get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.controls = controls.arc.adv$B, method.A.patients = patients.arc.adv$A, method.B.patients = patients.arc.adv$B, method.names = c("Architect", "Advia"))
+get.commutability.plot.1(method.A.controls = controls.adv.dim$A, method.B.controls = controls.adv.dim$B, method.A.patients = patients.adv.dim$A, method.B.patients = patients.adv.dim$B, method.names = c("Advia", "Dimension"), newdata = 5:88)
+get.commutability.plot.1(method.A.controls = controls.dim.cob$A, method.B.controls = controls.dim.cob$B, method.A.patients = patients.dim.cob$A, method.B.patients = patients.dim.cob$B, method.names = c("Dimension", "Cobas"), newdata = 1:80)
+get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.controls = controls.arc.adv$B, method.A.patients = patients.arc.adv$A, method.B.patients = patients.arc.adv$B, method.names = c("Architect", "Advia"), newdata = 1:85)
 
 
 ####### Simulation studies ############################################
@@ -636,25 +640,56 @@ set.seed(999)
 # Clinical samples, control material samples and replicates, respectively
 n <- 20; m <- 3; r <- 3
 # Coefficients in A = a*B^2 + b*B + c
-a <- 0.1; b <- 0.9; c <- 0.3
+a <- 0.01; b <- 0.9; c <- 0.1
 # Range of measurement values
 lower.limit  <- 5
 upper.limit <- 15
 # Coefficients of variation
-CV.B <- 0.12
+CV.B <- 0.05
 CV.A <- 0.05
 
-simulate.samples <- function(n = 20, r = 3, a = 0, b = 1, c = 0, CV.A = 0.5, CV.B = 0.05, range = c(5,15))
+simulate.samples <- function(n = 20, r = 3, a = 0, b = 1, c = 0, CV.A = 0.05, CV.B = 0.05, range = c(5,15))
 {
   sample <- as.factor(rep(1:n, each = r))
-  replicat <- rep(1:r, each = 1, times = n)
+  replicat <- (rep(1:r, times = n))
   lower <- range[1]
   upper <- range[2]
-  x.true <- rep(runif(n, lower, upper), each = r) # Assumes latent variable to follow uniform distribution. Seems okay#
-  df <- data.frame(sample, replicate, x.true) %>% 
-    mutate(y.true = a + b * x.true + c * x.true^2) %>%
+  t <- qt(0.975,r-1)
+  y.true <- rep(runif(n, lower, upper), each = r) # Assumes latent variable to follow uniform distribution. Seems okay#
+  df <- data.frame(sample, replicat, y.true) %>% 
+    mutate(x.true = a*y.true^2 + b * y.true + c) %>%
     rowwise() %>%
+    mutate(A = y.true * (1 + rnorm(1, 0, CV.A))) %>%
     mutate(B = x.true * (1 + rnorm(1, 0, CV.B))) %>%
-    mutate(A = y.true * (1 + rnorm(1, 0, CV.A)))
-  return(list(samples = df))
+    group_by(sample) %>%
+    mutate(mA = mean(A), mB = mean(B)) %>%
+    mutate(se.A = sd(A), se.B = sd(B)) %>%
+    mutate(lwrA = mA - t*(se.A)/(r-1)^(0.5), uprA = mA + t*(se.A)/(r-1)^(0.5)) %>%
+    mutate(lwrB = mB - t*(se.B)/(r-1)^(0.5), uprB = mB + t*(se.B)/(r-1)^(0.5))
+  
+  return(samples = df)
 }
+
+
+sim.commutability.plot <- function(df.clinical = NULL, df.control = NULL, replicates = 3, new.dat = 1:20, method.names = c("A","B"))
+{
+  r <- replicates; n <- ceiling(length(df.clinical$A)/r); m <- ceiling(length(df.control$A)/r); N <- n*r; M <- m*r
+  new.dat <- seq(from = min(c(df.clinical$A, df.clinical$B)), to = max(c(df.clinical$A, df.clinical$B)), by = .5)
+  pred <- errors.in.variables.pi(method.A = df.clinical$A, method.B = df.clinical$B, newdata = new.dat, level = 0.99)
+  
+  cp <- ggplot() +
+    geom_ribbon(data = pred, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+    geom_line(data = pred, aes(x = newdata, y = y.pred), size = 0.2, linetype = "dashed", color = "black", alpha = 0.5) +
+    geom_point(data = df.clinical, aes(x = B, y = A), color = "blue", alpha = 0.8) +
+    geom_rect(data = df.control, aes(xmin = lwrB, xmax = uprB, ymin = lwrA, ymax = uprA), fill = "black", color = "black", alpha = 0.1) +
+    geom_point(data = df.control, aes(x = mB, y = mA), color = "red", shape = 18, size = 3) +
+    xlab(method.names[2]) +
+    ylab(method.names[1]) + 
+    labs(title = "Commutability plot", subtitle = paste(... = "green region is ",as.character(0.99*100),"%"," prediction bands", " and control material samples consist of 95% confidence intervals", sep = ""))
+  plot(cp)
+}
+
+sim.clinical <- simulate.samples(n = 20, r = 4, a = 0, b = 0.94, c = 0, range = c(5,20), CV.A = 0.02, CV.B = 0.02)
+sim.control <-  simulate.samples(n = 3, r = 4, a = 0, b = 0.96, c = 0, range = c(5,20), CV.A = 0.02, CV.B = 0.02)
+sim.commutability.plot(df.clinical = sim.clinical, df.control = sim.control)
+
