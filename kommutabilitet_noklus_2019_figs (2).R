@@ -175,7 +175,7 @@ plot2d <- ggplot() +
   geom_abline(intercept = mean.intercept.arc.adv, slope = mean.slope.arc.adv, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = mB, y = mA), color  = "blue") +
   geom_point(data = controls.arc.adv, aes(x = mB, y = mA), color = "red") +
-  labs(title = "Scatter plot with prediction bands", subtitle = "blue: Clinical samples, red: Control material samples") +
+  labs(title = "OLSR with MOR", subtitle = "Green ribbon is 99% prediciton bands") +
   ylab("Architect") +
   xlab("Advia")
 
@@ -185,7 +185,7 @@ plot2e <- ggplot() +
   geom_abline(intercept = mean.intercept.dim.cob, slope = mean.slope.dim.cob, color = "black") +
   geom_point(data = patients.dim.cob, aes(x = mB, y = mA), color  = "blue") +
   geom_point(data = controls.dim.cob, aes(x = mB, y = mA), color = "red") +
-  labs(title = "Scatter plot with prediction bands", subtitle = "blue: Clinical samples, red: Control material samples") +
+  labs(title = "OLSR with MOR", subtitle = "Green ribbon is 99% prediciton bands") +
   ylab("Dimension") +
   xlab("Cobas")
 
@@ -195,11 +195,15 @@ plot2f <- ggplot() +
   geom_abline(intercept = mean.intercept.adv.dim, slope = mean.slope.adv.dim, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = mB, y = mA), color  = "blue") +
   geom_point(data = controls.adv.dim, aes(x = mB, y = mA), color = "red") +
-  labs(title = "Standard scatter plot", subtitle = "blue: Clinical samples, red: Control material samples") +
+  labs(title = "OLSR with MOR", subtitle = "Green ribbon is 99% prediciton bands") +
   ylab("Advia") +
   xlab("Dimension")
 
 plot(plot2d); plot(plot2e); plot(plot2f) 
+
+##### Residual plots for plot 2abcdef #########################################
+
+
 
 #4##### Log-log plots ##########################################################
 
