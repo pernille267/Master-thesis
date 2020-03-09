@@ -340,9 +340,21 @@ grid.arrange(plot5a, plot5d, nrow = 1)
 grid.arrange(plot5b, plot5e, nrow = 1)
 grid.arrange(plot5c, plot5f, nrow = 1)
 
+estimate.lambda <- function(method.A, method.B, replicates = 3)
+{
+  r <- replicates; n <- length(method.A) / r
+  replicat <- sort(rep(1:r, n)); sample <- rep(1:n, r)
+  df <- data.table::data.table(sample = sample, replicat = replicat, A = method.A, B = method.B) %>%
+    group_by(sample) %>%
+    mutate(mA = mean(A), mB = mean(B)) %>%
+    mutate(YmM = (A - mA)^2, XmM = (B - mB)^2)
+  sigma.ee <- (sum(df$YmM)) / (n*r - n)
+  sigma.uu <- (sum(df$XmM)) / (n*r - n)
+  return(lambda = sigma.ee / sigma.uu)
+}
+
 #7##### Methods of evaluation 2 :  Bland-Altman and polynomial regression (Needs work)
 #8###### Deming regression function ############################################
-
 errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u", replicates = 3, omit = FALSE)
 {
   ####### Basics ###############################################
@@ -354,12 +366,8 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
   sample <- rep(1:(ceiling(n)), r)
   ifelse(omit == FALSE, patients.A.B <- data.frame(sample = sample, replicat = replicat, gA = gA, gB = gB), patients.A.B <- data.frame(sample = sample[-omit], replicat = replicat[-omit], gA = gA, gB = gB))
   ##############
-  print(patients.A.B)
-  anova.A <- lmer(data = patients.A.B, REML = FALSE, formula = gA ~ (1 | sample))
-  anova.B <- lmer(data = patients.A.B, REML = FALSE, formula = gB ~ (1 | sample))
-  sigma.ee.hat <- as.data.frame(VarCorr(anova.A))[2, 4]
-  sigma.uu.hat <- as.data.frame(VarCorr(anova.B))[2, 4]
-  lambda.hat <- sigma.ee.hat/sigma.uu.hat
+  
+  lambda.hat <- estimate.lambda(gA, gB, r)
   lambda.hat. <- ifelse(lambda != "u", lambda, lambda.hat)
   
   ############# Means and estimated covariances ##################### 
@@ -407,11 +415,15 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
     model.frame = data.table::data.table(response = gA, predictor = gB)))
 }
 
+test <- errors.in.variables.lm(patients.adv.dim$A, patients.adv.dim$B)
+
+
+
 deming.lm <- function(method.A, method.B, replicates)
 {
   df <- data.table::data.table(sample = rep(1:(length(method.A)/replicates)), replicat = rep(1:replicates, length(method.A)/replicates), A = method.A, B = method.B)
   mean.cov <- data.table::data.table(mA = mean(df$A), mB = mean(df$B), SS.AA = (1/length(df$A))*crossprod(df$A - mean(df$A)), SS.BB = (1/length(df$B))*crossprod(df$B - mean(df$A)),SS.BA = (1/length(df$A))*crossprod(df$A - mean(df$A), df$B - mean(df$B)))
-  lambda <- mean.cov$SS.AA / mean.cov$SS.BB
+  lambda <- estimate.lambda(method.A = method.A, method.B = method.B)
   b1 <- (mean.cov$SS.AA - lambda * mean.cov$SS.BB + sqrt((mean.cov$SS.AA - lambda*mean.cov$SS.BB) ^ 2 + 4 * lambda*mean.cov$SS.BA^2))/(2*mean.cov$SS.BA)
   b0 <- mean.cov$mA - mean.cov$mB * b1
   fitted <- b0 + b1 * df$B
