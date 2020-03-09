@@ -1,6 +1,6 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load("tidyverse", "splines", "brms", "readxl", "mgcv", 
-               "merTools", "gridExtra", "grid", "ggplot2")
+               "merTools", "gridExtra", "grid", "ggplot2", "microbenchmark")
 
 ############# Loading data ###################
 setwd("C:/Users/Eier/Downloads")
@@ -24,7 +24,7 @@ controls.arc.adv <- dplyr::select(controls_crp_org, sample, replicat, "Architect
   mutate(mA = mean(A), mB = mean(B)) %>%
   group_by(sample, replicat) %>%
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
- 
+
 ######### Data: Dimension vs Cobas #####################################
 patients.dim.cob <- patients_crp_org %>%
   dplyr::select(sample, replicat, "Dimension", "Cobas") %>%
@@ -342,157 +342,113 @@ grid.arrange(plot5a, plot5d, nrow = 1)
 grid.arrange(plot5b, plot5e, nrow = 1)
 grid.arrange(plot5c, plot5f, nrow = 1)
 
-#7##### Methods of evaluation 2 :  Bland-Altman and polynomial regression (Needs work) ################
-#8##### Deming regression function ############################################
+#7##### Methods of evaluation 2 :  Bland-Altman and polynomial regression (Needs work)
+#8###### Deming regression function ############################################
 
-errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u", sigma.uu = "u", sigma.ee = "u", b0 = "u",
-                                   k = "u", replicates = 3, omit = FALSE, fit.vector = c(0))
+errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u", replicates = 3, omit = FALSE)
 {
-####### Basics ###############################################
+  ####### Basics ###############################################
   r <- replicates
   n <- length(method.A)/r
   gA <- method.A
   gB <- method.B
-  replicat <- sort(rep(1:r, each = 1, times = ceiling(n)))
+  replicat <- sort(rep(1:r, ceiling(n)))
   sample <- rep(1:(ceiling(n)), r)
-  if (omit == FALSE)
-  {
-    patients.A.B <- data.frame(sample = sample, replicat = replicat, gA = gA, gB = gB)
-  }
-  else {patients.A.B <- data.frame(sample = sample[-omit], replicat = replicat[-omit], gA = gA, gB = gB)}
-  lambda.hat. <- 0 #### Standard assigning of variables and data cleaning
-##############
+  patients.A.B <- ifelse(omit == FALSE, data.frame(sample = sample, replicat = replicat, gA = gA, gB = gB), data.frame(sample = sample[-omit], replicat = replicat[-omit], gA = gA, gB = gB))
+  ##############
   
-  if (lambda == "u" | lambda != "u")
-  {
-    anova.A <- lmer(data = patients.A.B, REML = FALSE, formula = gA ~ (1 | sample))
-    anova.B <- lmer(data = patients.A.B, REML = FALSE, formula = gB ~ (1 | sample))
-    sigma.ee.hat <- as.data.frame(VarCorr(anova.A))[2, 4]
-    sigma.uu.hat <- as.data.frame(VarCorr(anova.B))[2, 4]
-    lambda.hat = sigma.ee.hat/sigma.uu.hat
-  }
- #### Estimation of lambda here
-############# Means and estimated covariances ##################### 
+  anova.A <- lmer(data = patients.A.B, REML = FALSE, formula = gA ~ (1 | sample))
+  anova.B <- lmer(data = patients.A.B, REML = FALSE, formula = gB ~ (1 | sample))
+  sigma.ee.hat <- as.data.frame(VarCorr(anova.A))[2, 4]
+  sigma.uu.hat <- as.data.frame(VarCorr(anova.B))[2, 4]
+  lambda.hat <- sigma.ee.hat/sigma.uu.hat
+  lambda.hat. <- ifelse(lambda != "u", lambda, lambda.hat)
+  
+  ############# Means and estimated covariances ##################### 
   mA <- mean(gA) # Mean of first group
   mB <- mean(gB) # Mean of second group
-  SS.AA <- (1/(n*r))*crossprod(gA-mA)[,] # Vector product, because it is easier
-  SS.BB <- (1/(n*r))*crossprod(gB-mB)[,] # Vector product, because it is easier
-  SS.BA <- (1/(n*r))*crossprod(gB-mB,gA-mA)[,] # Vector product, because it is easier
-  print(SS.AA)
-  print(SS.BB)
-  print(SS.BA)
-#########################################################
-  if (lambda == "u" & sigma.ee != "u" & sigma.uu != "u") # if both sigmas are known
-  {
-    lambda.hat. <- sigma.ee / sigma.uu
-    A. <- sqrt((SS.AA - lambda.hat.*SS.BB)^2 + 4*lambda.hat.*SS.BA^2)
-    B. <- SS.AA - lambda.hat.*SS.BB
-    b1. <- (B. + A.) / (2*SS.BA)
-    b0. <- mA - mB*b1.
-    print(paste("Both sigma.ee and sigma.uu are known to be", as.character(sigma.ee), "and", as.character(sigma.uu), "respectively. Therefore deming regression is fitted."))
-  }
+  SS.AA <- (1/(n*r))*crossprod(gA-mA)[,] # Vector product, because it is faster
+  SS.BB <- (1/(n*r))*crossprod(gB-mB)[,] # Vector product, because it is faster
+  SS.BA <- (1/(n*r))*crossprod(gB-mB,gA-mA)[,] # Vector product, because it is fasteer
   
   # Deming coefficients from estimated lambda are always calculated
   A <- sqrt((SS.AA - lambda.hat*SS.BB) ^ 2 + 4 * lambda.hat*SS.BA^2)
   B <- SS.AA - lambda.hat * SS.BB
-  b1 <- (B + A) / (2*SS.BA)
-  b0 <- mA - mB*b1
-  
-  if (lambda != "u")
-  {
-    A. <- sqrt((SS.AA - lambda.hat.*SS.BB)^2 + 4*lambda.hat.*SS.BA^2)
-    B. <- SS.AA - lambda.hat.*SS.BB
-    b1. <- (B. + A.) / (2*SS.BA)
-    b0. <- mA - mB*b1.
-  }
-  
-  if (lambda == "u")
-  {
-    A. <- sqrt((SS.AA - lambda.hat*SS.BB)^2 + 4*lambda.hat*SS.BA^2)
-    B. <- SS.AA - lambda.hat*SS.BB
-    b1. <- (B. + A.) / (2*SS.BA)
-    b0. <- mA - mB*b1.
-  }
-  # If sigma.uu is known, but sigma.ee unknown 
-  if (sigma.uu != "u" & sigma.ee == "u")
-  {
-    b1. <- (SS.BA)/(SS.BB - sigma.uu)
-    b0. <- mA - mB*b1.
-    lambda.hat. <- lambda.hat
-  }
-  
-  # if sigma.ee is known, but sigma.ee unknown
-  if (sigma.ee != "u" & sigma.uu == "u")
-  {
-    b1. <- (SS.AA - sigma.ee)/(SS.BA)
-    b0. <- mA - mB*b1.
-    lambda.hat. <- lambda.hat
-  }
-  
-  # if ratio of reliability, k, is known
-  if (k != "u")
-  {
-    b1. <- (SS.BA)/(k*SS.BB)
-    b0. <- (mA - mB*b1)
-    lambda.hat. <- lambda.hat
-  }
-  
-  if (lambda != "u")
-  {
-    lambda.hat. <- lambda
-  }
-  
+  b1 <- (B + A) / (2*SS.BA); b0 <- mA - mB*b1
+  # If lambda is known, then we get these estimates:
+  A. <- sqrt((SS.AA - lambda.hat.*SS.BB) ^ 2 + 4 * lambda.hat.*SS.BA^2)
+  B. <- SS.AA - lambda.hat. * SS.BB
+  b1. <- (B. + A.) / (2*SS.BA); b0. <- mA - mB*b1.
+  ifelse(lambda == "u", b0. <- b0, b0 <- b0)
+  ifelse(lambda == "u", b1. <- b1, b0 <- b0)
   # These variances are estimated by using gillard's approach.
   sigma.ll <- (SS.BA)/(b1) # Variation of true value
   sigma.uu <- SS.BB - sigma.ll # Variation of measurement method B
   sigma.ee <- SS.AA - (b1^2) * sigma.ll # Variation of measurement method B
   sigma.det <- SS.BB * SS.AA - SS.BA ^ 2 
-  V <- b1^2 * sigma.uu + sigma.ee 
-
+  V <- b1^2 * sigma.uu + sigma.ee
+  residuals <- gA - (b0 + b1 * gB) 
+  
   variance.b1 <- (sigma.det) / (sigma.ll ^ 2)
   variance.b0 <- (mB^2)*((sigma.det)/(sigma.ll ^ 2)) + V
   covariance.b0.b1 <- - mB * variance.b1
-  print(variance.b1)
-  std.error.b1 <- sqrt(variance.b1)
-  std.error.b0 <- sqrt(variance.b0)
+  std.error.b1 <- sqrt(abs(variance.b1))
+  std.error.b0 <- sqrt(abs(variance.b0))
   cov.mat.b1.bo <- data.frame(row.names = c("b0","b1"), rbind(c(variance.b0, covariance.b0.b1), c(covariance.b0.b1, variance.b1))) %>%
     rename(b0 = X1, b1 = X2)
+  fitted.values <- b0 + b1 * method.B
   
-  if (length(fit.vector) > 0) {fit.values <- rep(b0,length(100)) + b1 * fit.vector}
-  
-  return(list(coefficients = data.frame(deming.coef = c(b0, b1), altern.coef = c(b0.,b1.)),
-  lambdas = data.frame(row.names = c("estimated", "estimated/known"), lambda = c(lambda.hat,lambda.hat.)),
-  covariance.matrix = cov.mat.b1.bo, standard.errors = data.frame(row.names = c("b0","b1"), 
-  se = c(std.error.b0, std.error.b1)), sigmas = data.frame(row.names = c("Method A", "Method B", "Latent", "Determinant"),
-  sigma = c(sigma.ee, sigma.uu, sigma.ll, sigma.det)), fit.values = fit.values))
-         
-} # Basics
-#9##### Methods of evaluation 3 : Deming regression prediction function #################################
+  return(list(
+    coefficients = data.frame(Intercept = b0, x = b1),
+    altern.coef = data.frame(Intercept = b0., x = b1.),
+    lambdas = data.frame(row.names = c("estimated deming", "estimated alternative/known"), lambda = c(lambda.hat,lambda.hat.)),
+    covariance.matrix = cov.mat.b1.bo, 
+    standard.errors = data.frame(row.names = c("Intercept","x"), se = c(std.error.b0, std.error.b1)), 
+    sigmas = data.frame(row.names = c("Method A", "Method B", "Latent", "Determinant"), sigma = c(sigma.ee, sigma.uu, sigma.ll, sigma.det)),
+    fitted.values = fitted.values,
+    residuals = residuals,
+    model.frame = data.frame(response = gA, predictor = gB)))
+}
 
-# Three examples on Deming regression with estimated lambda
-d1 <- errors.in.variables.lm(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)
-d2 <- errors.in.variables.lm(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B)
+deming.lm <- function(method.A, method.B, replicates)
+{
+  df <- data.table::data.table(sample = rep(1:(length(method.A)/replicates)), replicat = rep(1:replicates, length(method.A)/replicates), A = method.A, B = method.B)
+  attach(cf)
+  mean.cov <- data.table::data.table(mA = mean(A), mB = mean(B), SS.AA = (1/length(A))*crossprod(A - mean(A)), SS.BB = (1/length(B))*crossprod(B - mean(B)),SS.BA = (1/length(A))*crossprod(A - mean(A), B - mean(B)))
+  detach(df)
+  attach(mean.cov)
+  lambda <- SS.AA.V1 / SS.BB.V1
+  b1 <- (SS.AA.V1 - lambda * SS.BB.V1 + sqrt((SS.AA.V1 - lambda*SS.BB.V1) ^ 2 + 4 * lambda*SS.BA.V1^2))/(2*SS.BA.V1)
+  b0 <- mA - mB * b1
+  fitted <- b0 + b1 * df$B
+  residuals <- fitted - df$A
+  model <- data.table::data.table(response = df$A, predictor = df$B)
+  detach(mean.cov)
+  return(list(residuals = residuals, fitted = fitted, coefficients = data.table::data.table(b0,b1), model.frame = model))
+}
+#9###### Methods of evaluation 3 : Deming regression prediction function #################################
+ccc <- deming.lm(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, replicates = 3)
+errors.in.variables.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
+
 d3 <- errors.in.variables.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
 
-# Predictio interval for the regression line
-errors.in.variables.pi <- function(method.A = NULL, method.B = NULL, newdata = 1:25, level = 0.95)
+# Prediction interval for the regression line
+errors.in.variables.pi <- function(method.A = NULL, method.B = NULL, newdata = "auto", level = 0.95, replicates = 3, lambda = "u")
 {
+  if (newdata == "auto") {newdata <- seq(from = min(c(method.A, method.B)), to = max(c(method.A, method.B)), by = 0.01 * max(c(method.A, method.B)))}
   alpha <- 1 - level
-  l <- length(method.A)
+  n <- length(method.A)
   fit <- errors.in.variables.lm(method.A = method.A, method.B = method.B)
-  lambda <- fit$lambdas$lambda[1]
-  b0 <- fit$coefficients$deming.coef[1]
-  b1 <- fit$coefficients$deming.coef[2]
+  lambda <- if (lambda != "u") {lambda} else {fit$lambdas$lambda[1]}
+  b0 <- fit$coefficients$deming.coef[1]; b1 <- fit$coefficients$deming.coef[2]
   cov.b0.b1 <- fit$covariance.matrix
-  sigma.uu <- fit$sigmas$sigma[2]
-  sigma.ee <- fit$sigmas$sigma[1]
-  t <- qt(1-alpha/2, l-2) # Uppper bound -t will be lower bound from symmetry
-  deming.pi <- data.frame(newdata) %>%
+  sigma.uu <- fit$sigmas$sigma[2]; sigma.ee <- fit$sigmas$sigma[1]
+  t <- qt(1-alpha/2, n-2) # Uppper bound -t will be lower bound from symmetry
+  deming.pi.jackknife <- data.frame(newdata) %>%
     mutate(y.pred = b0 + b1 * newdata) %>%
     mutate(pred.se = jackknife.univariate(method.A = method.A, method.B = method.B, fit = newdata)$spot.se.error$std.error) %>%
     mutate(lwr = y.pred - t*pred.se, upr = y.pred + t*pred.se)
-  
-  return(deming.pi)
+  return(deming.pi.jackknife)
 }
 
 # Testing prediction interval function
@@ -500,10 +456,14 @@ errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.co
 errors.in.variables.pi(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B)
 errors.in.variables.pi(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)
 
-jackknife.univariate <- function(method.A = NULL, method.B = NULL, lambda = "u", estimator = "pred.se", fit = 1:25)
+# Time should be improved
+system.time(expr = errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B))
+
+# Is this allowed?
+jackknife.univariate <- function(method.A = NULL, method.B = NULL, lambda = "u", estimator = "pred.se", newdata = c(0))
 {
   m <- length(method.A) # The number of pairs (A,B)
-  n <- length(fit)
+  n <- length(newdata)
   if (estimator == "pred.se" & n > 0)
   {
     fitt.values <- data.frame(matrix(0, nrow = m, ncol = n)) # data frame to be filled with pred.values
@@ -527,17 +487,62 @@ jackknife.univariate <- function(method.A = NULL, method.B = NULL, lambda = "u",
   return(list(jack.std.error.mean = jack.mean.se, spot.se.error = data.frame(row.names = 1:n, std.error = jack.se)))
 }  
 
-# Testing the jackknife method
-jackknife.univariate(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, estimator = "pred.se", fit = 1:100)
+#################################### Testing the jackknife method ##############
+jackknife.univariate(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, estimator = "pred.se")
 jackknife.univariate(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B, estimator = "pred.se")
 jackknife.univariate(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, estimator = "pred.se")
+################################################################################
+
+
+##### PI with bootstrap technique
+get.leverage <- function(method.B = NULL)
+{
+  design.matrix <- as.matrix(data.frame(ones = rep(1, length(method.B)), B = method.B))  
+  hat.matrix <- design.matrix%*%solve(t(design.matrix)%*%design.matrix)%*%t(design.matrix)
+  leverage <- diag(hat.matrix)
+  return(leverage)
+}
+
+fit <- deming.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, replicates = 3)
+y.p <- fit$coefficients$b0 + fit$coefficients$b1 * (10:90)
+residuals <- fit[[1]]
+adjusted.residuals <- (residuals)/(sqrt(1 - get.leverage(patients.dim.cob$B)))
+s <- adjusted.residuals - mean(adjusted.residuals)
+
+bootstrap.resample <- function(s, fit, pred.points = 10, replicates = 3)
+{
+  s <- sample(s,length(s),replace = T)
+  y.bs.fit <- unlist(fitted(fit))+s; r <- replicates
+  x <- fit$model.frame$predictor
+  fit.new <- deming.lm(method.A = y.bs.fit, method.B = x, replicates = r)
+  residuals.new <- fit.new$residuals
+  adjusted.residuals.new <- (residuals.new)/(sqrt(1 - get.leverage(x)))
+  s.bs <- adjusted.residuals.new - mean(adjusted.residuals.new) 
+  error.fit <- fit.new$coefficients$b0 - fit.new$coefficients$b0
+  error.fit <- error.fit + (fit.new$coefficients$b1 - fit.new$coefficients$b1)*pred.points
+  return((unname(error.fit + sample(s.bs, size=1))))
+}
+
+replicate(n = 50, expr = bootstrap.resample(s,fit))
+
+draws <- data.table::data.table(matrix(0, nrow = 50, ncol = 81))
+
+for (i in 10:90) {draws[,(i-9)] <- replicate(n = 50, expr = bootstrap.resample(s,fit, pred.points = i))}
+for (i in 10:90) {draws[,(i-9)] <- draws[,(i-9)] + y.p[i-9]}
+sapply(X = draws + y.p, FUN = quantile, probs = c(0.05,0.95))
+
+hist(draws$V1, breaks = 25)
+
+
+errors.in.variables.lm(method.A = patients.adv.dim$A,method.B = patients.adv.dim$B)$residuals/sqrt(1-get.leverage(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)$leverage)
+
 
 # Prediction intervals for three comparisons
 pidr.dim.cob <- errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, level = 0.99)
 pidr.arc.adv <- errors.in.variables.pi(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B, level = 0.99)
 pidr.adv.dim <- errors.in.variables.pi(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, level = 0.99)
 
-#10#### Plots of deming with 99% prediction interval ######################
+############ Plots of deming with 99% prediction interval ######################
 plot6a <- ggplot() +
   geom_ribbon(data = pidr.dim.cob, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
   geom_line(data = pidr.dim.cob, aes(x = newdata, y = y.pred), size = 0.2, color = "black") +
@@ -579,7 +584,7 @@ get.confidence.region <- function(method.A = NULL, method.B = NULL, replicates =
   if (normality == TRUE)
   {
     t <- qt(1 - alpha / 2, df = r-1)
-    df.A.B <- data.frame(sample = rep(1:n, r), replicat = rep(1:r,n), A = method.A, B = method.B) %>%
+    df.A.B <- data.frame(sample = rep(1:n, r), replicat = sort(rep(1:r,n)), A = method.A, B = method.B) %>%
       group_by(sample) %>%
       mutate(mA = mean(A), mB = mean(B)) %>%
       mutate(sd.A = sd(A), sd.B = sd(B))
@@ -609,10 +614,10 @@ get.confidence.region(method.A = controls.arc.adv$A, method.B = controls.arc.adv
 get.confidence.region(method.A = controls.adv.dim$A, method.B = controls.adv.dim$B, normality = T)
 
 # Commutability plot
-get.commutability.plot.1 <- function(method.A.controls = NULL, method.B.controls = NULL, method.A.patients = NULL, method.B.patients = NULL, level.pred = 0.99, level.conf = 0.95, replicates = 3, lambda = "u", method.names = c("method A","method B"), newdata = 1:25)
+get.commutability.plot.1 <- function(method.A.controls = NULL, method.B.controls = NULL, method.A.patients = NULL, method.B.patients = NULL, level.pred = 0.99, level.conf = 0.95, replicates = 3, lambda = "u", method.names = c("method A","method B"))
 {
   r <- replicates; n <- ceiling(length(method.A.patients)/r); m <- ceiling(length(method.A.controls)/r); N <- n*r; M <- m*r
-  pred <- errors.in.variables.pi(method.A = method.A.patients, method.B = method.B.patients, newdata = newdata)
+  pred <- errors.in.variables.pi(method.A = method.A.patients, method.B = method.B.patients)
   df.A.B.controls <- data.frame(sample = rep(1:m,r), replicat = sort(rep(1:r,m)), A = method.A.controls, B = method.B.controls) %>%
     bind_cols(get.confidence.region(method.A = method.A.controls, method.B = method.B.controls, level = level.conf))
   print(df.A.B.controls)
@@ -630,66 +635,10 @@ get.commutability.plot.1 <- function(method.A.controls = NULL, method.B.controls
   plot(cp)
 }
 
-get.commutability.plot.1(method.A.controls = controls.adv.dim$A, method.B.controls = controls.adv.dim$B, method.A.patients = patients.adv.dim$A, method.B.patients = patients.adv.dim$B, method.names = c("Advia", "Dimension"), newdata = 5:88)
-get.commutability.plot.1(method.A.controls = controls.dim.cob$A, method.B.controls = controls.dim.cob$B, method.A.patients = patients.dim.cob$A, method.B.patients = patients.dim.cob$B, method.names = c("Dimension", "Cobas"), newdata = 1:80)
-get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.controls = controls.arc.adv$B, method.A.patients = patients.arc.adv$A, method.B.patients = patients.arc.adv$B, method.names = c("Architect", "Advia"), newdata = 1:85)
+get.commutability.plot.1(method.A.controls = controls.adv.dim$A, method.B.controls = controls.adv.dim$B, method.A.patients = patients.adv.dim$A, method.B.patients = patients.adv.dim$B, method.names = c("Advia", "Dimension"))
+get.commutability.plot.1(method.A.controls = controls.dim.cob$A, method.B.controls = controls.dim.cob$B, method.A.patients = patients.dim.cob$A, method.B.patients = patients.dim.cob$B, method.names = c("Dimension", "Cobas"))
+get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.controls = controls.arc.adv$B, method.A.patients = patients.arc.adv$A, method.B.patients = patients.arc.adv$B, method.names = c("Architect", "Advia"))
 
+####### Simulation function ############################################
 
-####### Simulation studies ############################################
-set.seed(999)
-# Clinical samples, control material samples and replicates, respectively
-n <- 20; m <- 3; r <- 3
-# Coefficients in A = a*B^2 + b*B + c
-a <- 0.01; b <- 0.9; c <- 0.1
-# Range of measurement values
-lower.limit  <- 5
-upper.limit <- 15
-# Coefficients of variation
-CV.B <- 0.05
-CV.A <- 0.05
-
-simulate.samples <- function(n = 20, r = 3, a = 0, b = 1, c = 0, CV.A = 0.05, CV.B = 0.05, range = c(5,15))
-{
-  sample <- as.factor(rep(1:n, each = r))
-  replicat <- (rep(1:r, times = n))
-  lower <- range[1]
-  upper <- range[2]
-  t <- qt(0.975,r-1)
-  y.true <- rep(runif(n, lower, upper), each = r) # Assumes latent variable to follow uniform distribution. Seems okay#
-  df <- data.frame(sample, replicat, y.true) %>% 
-    mutate(x.true = a*y.true^2 + b * y.true + c) %>%
-    rowwise() %>%
-    mutate(A = y.true * (1 + rnorm(1, 0, CV.A))) %>%
-    mutate(B = x.true * (1 + rnorm(1, 0, CV.B))) %>%
-    group_by(sample) %>%
-    mutate(mA = mean(A), mB = mean(B)) %>%
-    mutate(se.A = sd(A), se.B = sd(B)) %>%
-    mutate(lwrA = mA - t*(se.A)/(r-1)^(0.5), uprA = mA + t*(se.A)/(r-1)^(0.5)) %>%
-    mutate(lwrB = mB - t*(se.B)/(r-1)^(0.5), uprB = mB + t*(se.B)/(r-1)^(0.5))
-  
-  return(samples = df)
-}
-
-
-sim.commutability.plot <- function(df.clinical = NULL, df.control = NULL, replicates = 3, new.dat = 1:20, method.names = c("A","B"))
-{
-  r <- replicates; n <- ceiling(length(df.clinical$A)/r); m <- ceiling(length(df.control$A)/r); N <- n*r; M <- m*r
-  new.dat <- seq(from = min(c(df.clinical$A, df.clinical$B)), to = max(c(df.clinical$A, df.clinical$B)), by = .5)
-  pred <- errors.in.variables.pi(method.A = df.clinical$A, method.B = df.clinical$B, newdata = new.dat, level = 0.99)
-  
-  cp <- ggplot() +
-    geom_ribbon(data = pred, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-    geom_line(data = pred, aes(x = newdata, y = y.pred), size = 0.2, linetype = "dashed", color = "black", alpha = 0.5) +
-    geom_point(data = df.clinical, aes(x = B, y = A), color = "blue", alpha = 0.8) +
-    geom_rect(data = df.control, aes(xmin = lwrB, xmax = uprB, ymin = lwrA, ymax = uprA), fill = "black", color = "black", alpha = 0.1) +
-    geom_point(data = df.control, aes(x = mB, y = mA), color = "red", shape = 18, size = 3) +
-    xlab(method.names[2]) +
-    ylab(method.names[1]) + 
-    labs(title = "Commutability plot", subtitle = paste(... = "green region is ",as.character(0.99*100),"%"," prediction bands", " and control material samples consist of 95% confidence intervals", sep = ""))
-  plot(cp)
-}
-
-sim.clinical <- simulate.samples(n = 20, r = 4, a = 0, b = 0.94, c = 0, range = c(5,20), CV.A = 0.02, CV.B = 0.02)
-sim.control <-  simulate.samples(n = 3, r = 4, a = 0, b = 0.96, c = 0, range = c(5,20), CV.A = 0.02, CV.B = 0.02)
-sim.commutability.plot(df.clinical = sim.clinical, df.control = sim.control)
 
