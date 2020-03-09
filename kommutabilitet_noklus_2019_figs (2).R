@@ -62,8 +62,6 @@ controls.adv.dim <- dplyr::select(controls_crp_org, sample, replicat, "Advia", "
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
 
 
-
-
 #1##### Standard scatter plots regarding two measurement methods ###############
 
 # Architect vs Advia
@@ -354,9 +352,9 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
   gB <- method.B
   replicat <- sort(rep(1:r, ceiling(n)))
   sample <- rep(1:(ceiling(n)), r)
-  patients.A.B <- ifelse(omit == FALSE, data.frame(sample = sample, replicat = replicat, gA = gA, gB = gB), data.frame(sample = sample[-omit], replicat = replicat[-omit], gA = gA, gB = gB))
+  ifelse(omit == FALSE, patients.A.B <- data.frame(sample = sample, replicat = replicat, gA = gA, gB = gB), patients.A.B <- data.frame(sample = sample[-omit], replicat = replicat[-omit], gA = gA, gB = gB))
   ##############
-  
+  print(patients.A.B)
   anova.A <- lmer(data = patients.A.B, REML = FALSE, formula = gA ~ (1 | sample))
   anova.B <- lmer(data = patients.A.B, REML = FALSE, formula = gB ~ (1 | sample))
   sigma.ee.hat <- as.data.frame(VarCorr(anova.A))[2, 4]
@@ -394,41 +392,36 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
   covariance.b0.b1 <- - mB * variance.b1
   std.error.b1 <- sqrt(abs(variance.b1))
   std.error.b0 <- sqrt(abs(variance.b0))
-  cov.mat.b1.bo <- data.frame(row.names = c("b0","b1"), rbind(c(variance.b0, covariance.b0.b1), c(covariance.b0.b1, variance.b1))) %>%
-    rename(b0 = X1, b1 = X2)
+  cov.mat.b1.bo <- data.table::data.table(b0 = c(variance.b0, covariance.b0.b1), b1 = c(covariance.b0.b1, variance.b1))
   fitted.values <- b0 + b1 * method.B
   
   return(list(
-    coefficients = data.frame(Intercept = b0, x = b1),
-    altern.coef = data.frame(Intercept = b0., x = b1.),
-    lambdas = data.frame(row.names = c("estimated deming", "estimated alternative/known"), lambda = c(lambda.hat,lambda.hat.)),
+    coefficients = data.table::data.table(Intercept = b0, x = b1),
+    altern.coef = data.table::data.table(Intercept = b0., x = b1.),
+    lambdas = data.table::data.table(lambda.estimated = lambda.hat, lambda = lambda.hat.),
     covariance.matrix = cov.mat.b1.bo, 
-    standard.errors = data.frame(row.names = c("Intercept","x"), se = c(std.error.b0, std.error.b1)), 
-    sigmas = data.frame(row.names = c("Method A", "Method B", "Latent", "Determinant"), sigma = c(sigma.ee, sigma.uu, sigma.ll, sigma.det)),
+    standard.errors = data.table::data.table(Intercept = std.error.b0, x = std.error.b1), 
+    sigmas = data.table::data.table(variable = c("Method A", "Method B", "Latent", "Determinant"), sigma = c(sigma.ee, sigma.uu, sigma.ll, sigma.det)),
     fitted.values = fitted.values,
     residuals = residuals,
-    model.frame = data.frame(response = gA, predictor = gB)))
+    model.frame = data.table::data.table(response = gA, predictor = gB)))
 }
 
 deming.lm <- function(method.A, method.B, replicates)
 {
   df <- data.table::data.table(sample = rep(1:(length(method.A)/replicates)), replicat = rep(1:replicates, length(method.A)/replicates), A = method.A, B = method.B)
-  attach(cf)
-  mean.cov <- data.table::data.table(mA = mean(A), mB = mean(B), SS.AA = (1/length(A))*crossprod(A - mean(A)), SS.BB = (1/length(B))*crossprod(B - mean(B)),SS.BA = (1/length(A))*crossprod(A - mean(A), B - mean(B)))
-  detach(df)
-  attach(mean.cov)
-  lambda <- SS.AA.V1 / SS.BB.V1
-  b1 <- (SS.AA.V1 - lambda * SS.BB.V1 + sqrt((SS.AA.V1 - lambda*SS.BB.V1) ^ 2 + 4 * lambda*SS.BA.V1^2))/(2*SS.BA.V1)
-  b0 <- mA - mB * b1
+  mean.cov <- data.table::data.table(mA = mean(df$A), mB = mean(df$B), SS.AA = (1/length(df$A))*crossprod(df$A - mean(df$A)), SS.BB = (1/length(df$B))*crossprod(df$B - mean(df$A)),SS.BA = (1/length(df$A))*crossprod(df$A - mean(df$A), df$B - mean(df$B)))
+  lambda <- mean.cov$SS.AA / mean.cov$SS.BB
+  b1 <- (mean.cov$SS.AA - lambda * mean.cov$SS.BB + sqrt((mean.cov$SS.AA - lambda*mean.cov$SS.BB) ^ 2 + 4 * lambda*mean.cov$SS.BA^2))/(2*mean.cov$SS.BA)
+  b0 <- mean.cov$mA - mean.cov$mB * b1
   fitted <- b0 + b1 * df$B
-  residuals <- fitted - df$A
+  residuals <- df$A - fitted 
   model <- data.table::data.table(response = df$A, predictor = df$B)
-  detach(mean.cov)
   return(list(residuals = residuals, fitted = fitted, coefficients = data.table::data.table(b0,b1), model.frame = model))
 }
+
 #9###### Methods of evaluation 3 : Deming regression prediction function #################################
 ccc <- deming.lm(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, replicates = 3)
-errors.in.variables.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
 
 d3 <- errors.in.variables.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
 
