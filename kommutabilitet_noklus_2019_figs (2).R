@@ -364,12 +364,10 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
   gB <- method.B
   replicat <- sort(rep(1:r, ceiling(n)))
   sample <- rep(1:(ceiling(n)), r)
-  ifelse(omit == FALSE, patients.A.B <- data.frame(sample = sample, replicat = replicat, gA = gA, gB = gB), patients.A.B <- data.frame(sample = sample[-omit], replicat = replicat[-omit], gA = gA, gB = gB))
+  ifelse(omit == FALSE, patients.A.B <- data.table::data.table(sample = sample, replicat = replicat, gA = gA, gB = gB), patients.A.B <- data.frame(sample = sample[-omit], replicat = replicat[-omit], gA = gA, gB = gB))
   ##############
-  
   lambda.hat <- estimate.lambda(gA, gB, r)
   lambda.hat. <- ifelse(lambda != "u", lambda, lambda.hat)
-  
   ############# Means and estimated covariances ##################### 
   mA <- mean(gA) # Mean of first group
   mB <- mean(gB) # Mean of second group
@@ -417,8 +415,7 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
 
 test <- errors.in.variables.lm(patients.adv.dim$A, patients.adv.dim$B)
 
-
-
+# A slightly faster deming lm function
 deming.lm <- function(method.A, method.B, replicates)
 {
   df <- data.table::data.table(sample = rep(1:(length(method.A)/replicates)), replicat = rep(1:replicates, length(method.A)/replicates), A = method.A, B = method.B)
@@ -433,9 +430,11 @@ deming.lm <- function(method.A, method.B, replicates)
 }
 
 #9###### Methods of evaluation 3 : Deming regression prediction function #################################
-ccc <- deming.lm(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, replicates = 3)
 
-d3 <- errors.in.variables.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
+
+
+
+
 
 # Prediction interval for the regression line
 errors.in.variables.pi <- function(method.A = NULL, method.B = NULL, newdata = "auto", level = 0.95, replicates = 3, lambda = "u")
@@ -460,9 +459,6 @@ errors.in.variables.pi <- function(method.A = NULL, method.B = NULL, newdata = "
 errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
 errors.in.variables.pi(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B)
 errors.in.variables.pi(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)
-
-# Time should be improved
-system.time(expr = errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B))
 
 # Is this allowed?
 jackknife.univariate <- function(method.A = NULL, method.B = NULL, lambda = "u", estimator = "pred.se", newdata = c(0))
@@ -502,7 +498,7 @@ jackknife.univariate(method.A = patients.adv.dim$A, method.B = patients.adv.dim$
 ##### PI with bootstrap technique
 get.leverage <- function(method.B = NULL)
 {
-  design.matrix <- as.matrix(data.frame(ones = rep(1, length(method.B)), B = method.B))  
+  design.matrix <- as.matrix(data.table::data.table(ones = rep(1, length(method.B)), B = method.B))  
   hat.matrix <- design.matrix%*%solve(t(design.matrix)%*%design.matrix)%*%t(design.matrix)
   leverage <- diag(hat.matrix)
   return(leverage)
@@ -528,15 +524,22 @@ bootstrap.resample <- function(s, fit, pred.points = 10, replicates = 3)
   return((unname(error.fit + sample(s.bs, size=1))))
 }
 
-replicate(n = 50, expr = bootstrap.resample(s,fit))
-
 draws <- data.table::data.table(matrix(0, nrow = 50, ncol = 81))
+for (i in 10:90) {draws[,(i-9)] <- replicate(n = 50, expr = bootstrap.resample(s,fit, pred.points = i)) + y.p[i-9]}
+draws <- sapply(X = draws, FUN = quantile, probs = c(0.05,0.95))
+draws
 
-for (i in 10:90) {draws[,(i-9)] <- replicate(n = 50, expr = bootstrap.resample(s,fit, pred.points = i))}
-for (i in 10:90) {draws[,(i-9)] <- draws[,(i-9)] + y.p[i-9]}
-sapply(X = draws + y.p, FUN = quantile, probs = c(0.05,0.95))
+lwr <- (draws[1,])
+upr <- (draws[2,])
+lwr
+upr
+lwr < upr
 
-hist(draws$V1, breaks = 25)
+pi <- data.table::data.table(pred.values = 10:90, fitted = y.p, lwr = lwr, upr = upr)
+
+
+
+hist(draws$V3, breaks = 25)
 
 
 errors.in.variables.lm(method.A = patients.adv.dim$A,method.B = patients.adv.dim$B)$residuals/sqrt(1-get.leverage(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)$leverage)
