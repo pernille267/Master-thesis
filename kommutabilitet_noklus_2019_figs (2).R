@@ -504,56 +504,56 @@ get.leverage <- function(method.B = NULL)
   return(leverage)
 }
 
-fit <- deming.lm(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, replicates = 3)
-y.p <- fit$coefficients$b0 + fit$coefficients$b1 * (10:90)
-residuals <- fit[[1]]
-adjusted.residuals <- (residuals)/(sqrt(1 - get.leverage(patients.dim.cob$B)))
-s <- adjusted.residuals - mean(adjusted.residuals)
-
-bootstrap.resample <- function(s, fit, pred.points = 10, replicates = 3)
+get.sample <- function(method.A, method.B, replicates = 3, lower.range, upper.range)
 {
-  s <- sample(s,length(s),replace = T)
-  y.bs.fit <- unlist(fitted(fit))+s; r <- replicates
+  fit <- deming.lm(method.A = method.A, method.B = method.B, replicates = 3)
+  y.p <- fit$coefficients$b0 + fit$coefficients$b1 * (lower.range:upper.range)
+  residuals <- fit$residuals
+  adjusted.residuals <- (residuals)/(sqrt(1 - get.leverage(method.B)))
+  s <- adjusted.residuals - mean(adjusted.residuals)
+  return(list(s = s, y.p = y.p, fit = fit))
+}
+
+
+bootstrap.resample <- function(s, fit, pred.point = 10, replicates = 3, lower.range, upper.range)
+{
+  s.bs <- sample(s,length(s),replace = T)
+  y.bs.fit <- unlist(fitted(fit))+s.bs; r <- replicates
   x <- fit$model.frame$predictor
-  fit.new <- deming.lm(method.A = y.bs.fit, method.B = x, replicates = r)
+  fit.new <- deming.lm(y.bs.fit, x, replicates = r)
   residuals.new <- fit.new$residuals
   adjusted.residuals.new <- (residuals.new)/(sqrt(1 - get.leverage(x)))
   s.bs <- adjusted.residuals.new - mean(adjusted.residuals.new) 
-  error.fit <- fit.new$coefficients$b0 - fit.new$coefficients$b0
-  error.fit <- error.fit + (fit.new$coefficients$b1 - fit.new$coefficients$b1)*pred.points
+  error.fit <- fit$coefficients$b0 - fit.new$coefficients$b0
+  error.fit <- error.fit + (fit$coefficients$b1 - fit.new$coefficients$b1)*pred.point
   return((unname(error.fit + sample(s.bs, size=1))))
 }
 
-draws <- data.table::data.table(matrix(0, nrow = 50, ncol = 81))
-for (i in 10:90) {draws[,(i-9)] <- replicate(n = 50, expr = bootstrap.resample(s,fit, pred.points = i)) + y.p[i-9]}
-draws <- sapply(X = draws, FUN = quantile, probs = c(0.05,0.95))
-draws
+bootstrap.pi <- function(method.A, method.B, B = 50, lower.range, upper.range, level = 0.99)
+{
+  sample <- get.sample(method.A, method.B, replicates = 3, lower.range, upper.range)
+  npv <- upper.range - lower.range + 1
+  draws <- data.table::data.table(matrix(0, nrow = B, ncol = npv))
+  for (i in lower.range:upper.range) {
+    draws[,(i + 1 - lower.range)] <- 
+    replicate(n = B, expr = bootstrap.resample(s = sample$s, fit = sample$fit, pred.point = i))
+  }
+  draws <- data.table::data.table(t(sapply(X = draws, FUN = quantile, probs = c(1-level,level)))) %>%
+  mutate(pred.values = as.double(lower.range:upper.range), fitted = sample$fit$coefficients$b0 + sample$fit$coefficients$b1*(lower.range:upper.range)) %>%
+  rename(lwr = paste(as.character((1 - level)*100), "%", sep = ""),
+         upr = paste(as.character((level)*100), "%", sep = "")) %>%
+  mutate(lwr = round(lwr + fitted, 3), upr = round(upr + fitted, 3), fitted = round(fitted, 3))
+  return(pi = draws)
+}
 
-lwr <- (draws[1,])
-upr <- (draws[2,])
-lwr
-upr
-lwr < upr
-
-pi <- data.table::data.table(pred.values = 10:90, fitted = y.p, lwr = lwr, upr = upr)
-
-
-
-hist(draws$V3, breaks = 25)
-
-
-errors.in.variables.lm(method.A = patients.adv.dim$A,method.B = patients.adv.dim$B)$residuals/sqrt(1-get.leverage(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)$leverage)
-
-
-# Prediction intervals for three comparisons
-pidr.dim.cob <- errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, level = 0.99)
-pidr.arc.adv <- errors.in.variables.pi(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B, level = 0.99)
-pidr.adv.dim <- errors.in.variables.pi(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, level = 0.99)
+pidr.dim.cob <- bootstrap.pi(patients.dim.cob$A,patients.dim.cob$B, 2000, 4, 90, 0.99)
+pidr.arc.adv <- bootstrap.pi(patients.arc.adv$A,patients.arc.adv$B, 1000, 4, 90, 0.99)
+pidr.adv.dim <- bootstrap.pi(patients.adv.dim$A,patients.adv.dim$B, 1000, 4, 90, 0.99)
 
 ############ Plots of deming with 99% prediction interval ######################
 plot6a <- ggplot() +
-  geom_ribbon(data = pidr.dim.cob, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-  geom_line(data = pidr.dim.cob, aes(x = newdata, y = y.pred), size = 0.2, color = "black") +
+  geom_ribbon(data = pidr.dim.cob, aes(x = pred.values, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_line(data = pidr.dim.cob, aes(x = pred.values, y = fitted), size = 0.2, color = "black") +
   geom_point(data = patients.dim.cob, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.dim.cob, aes(x = B, y = A), color = "red") +
   xlab("Cobas") +
@@ -561,8 +561,8 @@ plot6a <- ggplot() +
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
 
 plot6b <- ggplot() +
-  geom_ribbon(data = pidr.arc.adv, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-  geom_line(data = pidr.arc.adv, aes(x = newdata, y = y.pred), size = 0.2, color = "black") +
+  geom_ribbon(data = pidr.arc.adv, aes(x = pred.values, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_line(data = pidr.arc.adv, aes(x = pred.values, y = fitted), size = 0.2, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.arc.adv, aes(x = B, y = A), color = "red") +
   xlab("Architect") +
@@ -571,7 +571,7 @@ plot6b <- ggplot() +
 
 plot6c <- ggplot() +
   geom_ribbon(data = pidr.adv.dim, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-  geom_line(data = pidr.adv.dim, aes(x = newdata, y = y.pred), size = 0.2, color = "black") +
+  geom_line(data = pidr.adv.dim, aes(x = newdata, y = fitted), size = 0.2, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.adv.dim, aes(x = B, y = A), color = "red") +
   xlab("Dimension") +
