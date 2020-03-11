@@ -1,6 +1,7 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load("tidyverse", "splines", "brms", "readxl", "mgcv", 
-               "merTools", "gridExtra", "grid", "ggplot2", "microbenchmark")
+               "merTools", "gridExtra", "grid", "ggplot2", "microbenchmark",
+               "car", "lme4", "lmtest")
 
 ############# Loading data ###################
 setwd("C:/Users/Eier/Downloads")
@@ -61,9 +62,7 @@ controls.adv.dim <- dplyr::select(controls_crp_org, sample, replicat, "Advia", "
   group_by(sample, replicat) %>%
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
 
-
 #1##### Standard scatter plots regarding two measurement methods ###############
-
 # Architect vs Advia
 plot1a <- ggplot() +
   geom_abline(intercept = 0, slope = 1, color = "black") +
@@ -107,7 +106,7 @@ mean.olsr.dim.cob <- lm(data = patients.dim.cob, formula = mA ~ mB)
 mean.olsr.adv.dim <- lm(data = patients.adv.dim, formula = mA ~ mB)
 
 # New data
-min.meas <- min(c(patients.adv.dim$A,patients.adv.dim$B))
+min.meas <- c(min(c(patients.adv.dim$A,patients.adv.dim$B, 3:5)))
 max.meas <- max(c(patients.adv.dim$A,patients.adv.dim$B))
 newdata <- seq(from = min.meas, to = max.meas, by = 0.5)
 
@@ -142,7 +141,7 @@ plot2a <- ggplot() +
   geom_abline(intercept = intercept.arc.adv, slope = slope.arc.adv, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = B, y = A), color  = "blue") +
   geom_point(data = controls.arc.adv, aes(x = B, y = A), color = "red") +
-  labs(title = "Scatter plot with prediction bands", subtitle = "blue: Clinical samples, red: Control material samples") +
+  labs(title = "Architect vs. Advia", subtitle = "With 99% prediction bands") +
   ylab("Architect") +
   xlab("Advia")
 
@@ -152,7 +151,7 @@ plot2b <- ggplot() +
   geom_abline(intercept = intercept.dim.cob, slope = slope.dim.cob, color = "black") +
   geom_point(data = patients.dim.cob, aes(x = B, y = A), color  = "blue") +
   geom_point(data = controls.dim.cob, aes(x = B, y = A), color = "red") +
-  labs(title = "Scatter plot with prediction bands", subtitle = "blue: Clinical samples, red: Control material samples") +
+  labs(title = "Dimension vs. Cobas", subtitle = "With 99% prediction bands") +
   ylab("Dimension") +
   xlab("Cobas")
 
@@ -162,7 +161,7 @@ plot2c <- ggplot() +
   geom_abline(intercept = intercept.adv.dim, slope = slope.adv.dim, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = B, y = A), color  = "blue") +
   geom_point(data = controls.adv.dim, aes(x = B, y = A), color = "red") +
-  labs(title = "Standard scatter plot", subtitle = "blue: Clinical samples, red: Control material samples") +
+  labs(title = "Advia vs. Dimension", subtitle = "With 99% prediction bands") +
   ylab("Advia") +
   xlab("Dimension")
 
@@ -175,7 +174,7 @@ plot2d <- ggplot() +
   geom_abline(intercept = mean.intercept.arc.adv, slope = mean.slope.arc.adv, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = mB, y = mA), color  = "blue") +
   geom_point(data = controls.arc.adv, aes(x = mB, y = mA), color = "red") +
-  labs(title = "OLSR with MOR", subtitle = "Green ribbon is 99% prediciton bands") +
+  labs(title = "OLSR with MOR", subtitle = "With 99% prediciton bands") +
   ylab("Architect") +
   xlab("Advia")
 
@@ -185,7 +184,7 @@ plot2e <- ggplot() +
   geom_abline(intercept = mean.intercept.dim.cob, slope = mean.slope.dim.cob, color = "black") +
   geom_point(data = patients.dim.cob, aes(x = mB, y = mA), color  = "blue") +
   geom_point(data = controls.dim.cob, aes(x = mB, y = mA), color = "red") +
-  labs(title = "OLSR with MOR", subtitle = "Green ribbon is 99% prediciton bands") +
+  labs(title = "OLSR with MOR", subtitle = "With 99% prediciton bands") +
   ylab("Dimension") +
   xlab("Cobas")
 
@@ -201,53 +200,93 @@ plot2f <- ggplot() +
 
 plot(plot2d); plot(plot2e); plot(plot2f) 
 
-##### Residual plots for plot 2abcdef #########################################
+#4##### Residual plots for plot OLSR and formal tests ##########################
+plot2a.res <-  ggplot(data = NULL, mapping = aes(x = fitted(olsr.arc.adv), y = residuals(olsr.arc.adv))) +
+  geom_point() + geom_hline(yintercept = 0) +
+  ylab("Residuals") + xlab("Fitted") + 
+  labs(title = "Architect vs. Advia", subtitle = "Residuals vs. fitted plot")
+plot2b.res <-  ggplot(data = NULL, mapping = aes(x = fitted(olsr.dim.cob), y = residuals(olsr.dim.cob))) +
+  geom_point() + geom_hline(yintercept = 0) +
+  ylab("Residuals") + xlab("Fitted") + 
+  labs(title = "Dimension vs. Cobas", subtitle = "Residuals vs. fitted plot")
+plot2c.res <-  ggplot(data = NULL, mapping = aes(x = fitted(olsr.adv.dim), y = residuals(olsr.adv.dim))) +
+  geom_point() + geom_hline(yintercept = 0) +
+  ylab("Residuals") + xlab("Fitted") + 
+  labs(title = "Advia vs. Dimension", subtitle = "Residuals vs. fitted plot")
+plot2d.res <-  ggplot(data = NULL, mapping = aes(x = fitted(mean.olsr.arc.adv), y = residuals(mean.olsr.arc.adv))) +
+  geom_point() + geom_hline(yintercept = 0) +
+  ylab("Residuals") + xlab("Fitted") + 
+  labs(title = "Architect vs. Advia", subtitle = "Residuals vs. fitted plot (MOR)")
+plot2e.res <-  ggplot(data = NULL, mapping = aes(x = fitted(mean.olsr.dim.cob), y = residuals(mean.olsr.dim.cob))) +
+  geom_point() + geom_hline(yintercept = 0) +
+  ylab("Residuals") + xlab("Fitted") + 
+  labs(title = "Dimension vs. Cobas", subtitle = "Residuals vs. fitted plot (MOR)")
+plot2f.res <-  ggplot(data = NULL, mapping = aes(x = fitted(mean.olsr.adv.dim), y = residuals(mean.olsr.adv.dim))) +
+  geom_point() + geom_hline(yintercept = 0) +
+  ylab("Residuals") + xlab("Fitted") + 
+  labs(title = "Advia vs. Dimension", subtitle = "Residuals vs. fitted plot (MOR)")
+res.plots <- grid.arrange(plot2a.res, plot2b.res, plot2c.res, plot2d.res, plot2e.res, plot2f.res, nrow = 2, ncol = 3)
 
+# Normality
+shapiro.test(residuals(olsr.arc.adv))
+shapiro.test(residuals(olsr.dim.cob))
+shapiro.test(residuals(olsr.adv.dim))
+shapiro.test(residuals(mean.olsr.arc.adv))
+shapiro.test(residuals(mean.olsr.dim.cob))
+shapiro.test(residuals(mean.olsr.adv.dim))
 
+# Homoscedasticy
+bptest(olsr.arc.adv)
+bptest(olsr.dim.cob)
+bptest(olsr.adv.dim)
+bptest(mean.olsr.arc.adv)
+bptest(mean.olsr.dim.cob)
+bptest(mean.olsr.adv.dim)
 
-#4##### Log-log plots ##########################################################
+# Autocorrelation
+dwtest(olsr.arc.adv)
+dwtest(olsr.dim.cob)
+dwtest(olsr.adv.dim)
+dwtest(mean.olsr.arc.adv)
+dwtest(mean.olsr.dim.cob)
+dwtest(mean.olsr.adv.dim)
+
+#5##### Log-log plots (linearity?)##########################################################
 
 # Architect vs Advia
 plot3a <- ggplot() +
   geom_abline(intercept = 0, slope = 1, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = log(B), y = log(A)), color  = "blue") +
   geom_point(data = controls.arc.adv, aes(x = log(B), y = log(A)), color = "red") +
-  labs(title = "Log-log plot") +
-  ylab("log(Architect)") +
-  xlab("log(Advia)")
+  labs(title = "Log-log plot") + ylab("log(Architect)") + xlab("log(Advia)")
 
 # Dimension vs Cobas
 plot3b <- ggplot() +
   geom_abline(intercept = 0, slope = 1, color = "black") +
   geom_point(data = patients.dim.cob, aes(x = log(B), y = log(A)), color  = "blue") +
   geom_point(data = controls.dim.cob, aes(x = log(B), y = log(A)), color = "red") +
-  labs(title = "Log-log plot") +
-  ylab("log(Dimension)") +
-  xlab("log(Cobas)")
+  labs(title = "Log-log plot") + ylab("ln(Dimension)") + xlab("ln(Cobas)")
 
 # Advia vs Dimension
 plot3c <- ggplot() +
   geom_abline(intercept = 0, slope = 1, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = log(B), y = log(A)), color  = "blue") +
   geom_point(data = controls.adv.dim, aes(x = log(B), y = log(A)), color = "red") +
-  labs(title = "Log-log plot") +
-  ylab("log(Advia)") +
-  xlab("log(Dimension)")
+  labs(title = "Log-log plot") + ylab("ln(Advia)") + xlab("ln(Dimension)")
 
-plot(plot3a)
-plot(plot3b)
-plot(plot3c)
+plot(plot3a); plot(plot3b); plot(plot3c)
 
-#5##### Log-log plots with prediction bands ###################################
+#6##### Log-log plots with ols and prediction bands ############################
 log.olsr.arc.adv <- lm(data = patients.arc.adv, formula = log(A) ~ log(B))
 log.olsr.dim.cob <- lm(data = patients.dim.cob, formula = log(A) ~ log(B))
 log.olsr.adv.dim <- lm(data = patients.adv.dim, formula = log(A) ~ log(B))
 
 # Prediction intervals
-log.pred.arc.adv <- data.frame(new = log(newdata), predict(object = log.olsr.arc.adv, newdata = list(B = newdata), interval = "prediction", level = 0.99))
+log.pred.arc.adv <- data.frame(new = log(newdata), predict(object = log.olsr.arc.adv, newdata = list(B = newdata), interval = "prediction", level = 0.99)) 
 log.pred.dim.cob <- data.frame(new = log(newdata), predict(object = log.olsr.dim.cob, newdata = list(B = newdata), interval = "prediction", level = 0.99))
 log.pred.adv.dim <- data.frame(new = log(newdata), predict(object = log.olsr.adv.dim, newdata = list(B = newdata), interval = "prediction", level = 0.99))
 
+# Coefficients
 log.slope.arc.adv <- as.double(olsr.arc.adv$coefficients[2])
 log.slope.dim.cob <- as.double(olsr.dim.cob$coefficients[2])
 log.slope.adv.dim <- as.double(olsr.adv.dim$coefficients[2])
@@ -255,14 +294,14 @@ log.intercept.arc.adv <- as.double(olsr.arc.adv$coefficients[1])
 log.intercept.dim.cob <- as.double(olsr.dim.cob$coefficients[1])
 log.intercept.adv.dim <- as.double(olsr.adv.dim$coefficients[1])
 
+# Architect vs. Advia
 plot4a <- ggplot() +
   geom_ribbon(data = log.pred.arc.adv, aes(x = new, ymin = lwr, ymax = upr), fill = "green", alpha = 0.3, color = "black") +
   geom_line(data = log.pred.arc.adv, aes(x = new, y = fit), color = "black") +
   geom_point(data = patients.arc.adv, aes(x = log(B), y = log(A)), color  = "blue") +
   geom_point(data = controls.arc.adv, aes(x = log(B), y = log(A)), color = "red") +
-  labs(title = "log-log plot with prediction bands", subtitle = "blue: Clinical samples, red: Control material samples") +
-  ylab("log(Architect)") +
-  xlab("log(Advia)")
+  labs(title = "ln(Architect) vs. ln(Advia)", subtitle = "With 99% prediction bands") +
+  ylab("ln(Architect)") + xlab("ln(Advia)")
 
 # Dimension vs Cobas
 plot4b <- ggplot() +
@@ -270,9 +309,8 @@ plot4b <- ggplot() +
   geom_line(data = log.pred.dim.cob, aes(x = new, y = fit), color = "black") +
   geom_point(data = patients.dim.cob, aes(x = log(B), y = log(A)), color  = "blue") +
   geom_point(data = controls.dim.cob, aes(x = log(B), y = log(A)), color = "red") +
-  labs(title = "log-log plot with prediction bands", subtitle = "blue: Clinical samples, red: Control material samples") +
-  ylab("log(Dimension)") +
-  xlab("log(Cobas)")
+  labs(title = "ln(Dimension) vs. ln(Cobas)", subtitle = "With 99% prediction bands") +
+  ylab("ln(Dimension)") + xlab("ln(Cobas)")
 
 # Advia vs dimension
 plot4c <- ggplot() +
@@ -280,69 +318,73 @@ plot4c <- ggplot() +
   geom_line(data = log.pred.adv.dim, aes(x = new, y = fit), color = "black") +
   geom_point(data = patients.adv.dim, aes(x = log(B), y = log(A)), color  = "blue") +
   geom_point(data = controls.adv.dim, aes(x = log(B), y = log(A)), color = "red") +
-  labs(title = "log-log plot with prediction bands", subtitle = "blue: Clinical samples, red: Control material samples") +
-  ylab("log(Advia)") +
-  xlab("log(Dimension)")
-
+  labs(title = "ln(Advia) vs. ln(Dimension)", subtitle = "With 99% prediction bands") +
+  ylab("ln(Advia)") + xlab("ln(Dimension)")
 # Plots
-plot(plot4a)
-plot(plot4b)
-plot(plot4c)
-
+plot(plot4a); plot(plot4b); plot(plot4c)
 # Comparison between ordinary plots and log-log plots
 grid.arrange(plot2a,plot4a, nrow = 1)
 grid.arrange(plot2b,plot4b, nrow = 1)
 grid.arrange(plot2c,plot4c, nrow = 1)
+#7##### Residual plots ########################
 
-#6##### Residual plots ########################
+plot5a <- ggplot(mapping = aes(x = fitted.values(olsr.arc.adv), y = residuals(olsr.arc.adv))) +
+  geom_point(color = "black", shape = 17, size = 2) + geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Architect vs. Advia", subtitle = "Ordinary residual plot") +
+  ylab("Residuals") + xlab("Fitted values")
 
-plot5a <- ggplot(mapping = aes(x = fitted.values(olsr.arc.adv), y = residuals(olsr.arc.adv)), color = "black") +
-  geom_point() + 
-  geom_hline(yintercept = 0, size = 1, linetype = "dashed") +
-  labs(title = "Ordinary plot: Architect vs. Advia") +
-  ylab("Residuals") +
-  xlab("Fitted values")
+plot5b <- ggplot(mapping = aes(x = fitted.values(olsr.dim.cob), y = residuals(olsr.dim.cob)), color = "black", shape = 18) +
+  geom_point(color = "black", shape = 17, size = 2) +geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Dimension vs. Cobas", subtitle = "Ordinary residual plot") +
+  ylab("Residuals") + xlab("Fitted values")
 
-plot5b <- ggplot(mapping = aes(x = fitted.values(olsr.dim.cob), y = residuals(olsr.dim.cob)), color = "black") +
-  geom_point() + 
-  geom_hline(yintercept = 0, size = 1, linetype = "dashed") +
-  labs(title = "Ordinary plot: Dimension vs. Cobas") +
-  ylab("Residuals") +
-  xlab("Fitted values")
-
-plot5c <- ggplot(mapping = aes(x = fitted.values(olsr.adv.dim), y = residuals(olsr.adv.dim)), color = "black") +
-  geom_point() + 
-  geom_hline(yintercept = 0, size = 1, linetype = "dashed") +
-  labs(title = "Ordinary plot: Advia vs. Dimension") +
-  ylab("Residuals") +
-  xlab("Fitted values")
+plot5c <- ggplot(mapping = aes(x = fitted.values(olsr.adv.dim), y = residuals(olsr.adv.dim)), color = "black", shape = 18) +
+  geom_point(color = "black", shape = 17, size = 2) + geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Advia vs. Dimension", subtitle = "Ordinary residual plot") +
+  ylab("Residuals") + xlab("Fitted values")
 
 plot5d <- ggplot(mapping = aes(x = fitted.values(log.olsr.arc.adv), y = residuals(log.olsr.arc.adv)), color = "black") +
-  geom_point() + 
-  geom_hline(yintercept = 0, size = 1, linetype = "dashed") +
-  labs(title = "log-log plot: Architect vs. Advia") +
-  ylab("Residuals") +
-  xlab("Fitted values")
+  geom_point() + geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Architect vs. Advia", subtitle = "log-log residual plot") +
+  ylab("Residuals") + xlab("Fitted values")
 
 plot5e <- ggplot(mapping = aes(x = fitted.values(log.olsr.dim.cob), y = residuals(log.olsr.dim.cob)), color = "black") +
-  geom_point() + 
-  geom_hline(yintercept = 0, size = 1, linetype = "dashed") +
-  labs(title = "log-log plot: Dimension vs. Cobas") +
-  ylab("Residuals") +
-  xlab("Fitted values")
+  geom_point() + geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Dimension vs. Cobas", subtitle = "log-log residual plot") +
+  ylab("Residuals") + xlab("Fitted values")
 
 plot5f <- ggplot(mapping = aes(x = fitted.values(log.olsr.adv.dim), y = residuals(log.olsr.adv.dim)), color = "black") +
-  geom_point() + 
-  geom_hline(yintercept = 0, size = 1, linetype = "dashed") +
-  labs(title = "log-log plot: Advia vs. Dimension") +
-  ylab("Residuals") +
-  xlab("Fitted values")
+  geom_point() + geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Advia vs. Dimension", subtitle = "log-log residual plot") +
+  ylab("Residuals") + xlab("Fitted values")
 
 plot(plot5a); plot(plot5b); plot(plot5c)
 plot(plot5d); plot(plot5e); plot(plot5f)
 grid.arrange(plot5a, plot5d, nrow = 1)
 grid.arrange(plot5b, plot5e, nrow = 1)
 grid.arrange(plot5c, plot5f, nrow = 1)
+
+##### Formal tests
+# Normality
+shapiro.test(residuals(log.olsr.arc.adv))
+shapiro.test(residuals(log.olsr.dim.cob))
+shapiro.test(residuals(log.olsr.adv.dim))
+
+# Homoscedasticy
+bptest(log.olsr.arc.adv)
+bptest(log.olsr.dim.cob)
+bptest(log.olsr.adv.dim)
+
+# Autocorrelation
+dwtest(log.olsr.arc.adv)
+dwtest(log.olsr.dim.cob)
+dwtest(log.olsr.adv.dim)
+
+
+
+
+
+
 
 estimate.lambda <- function(method.A, method.B, replicates = 3)
 {
@@ -358,7 +400,8 @@ estimate.lambda <- function(method.A, method.B, replicates = 3)
 }
 
 #7##### Methods of evaluation 2 :  Bland-Altman and polynomial regression (Needs work)
-#8###### Deming regression function ############################################
+#8##### Methods of evaluation 2 : BA-plot + polynomial regression
+#8##### Deming regression function ############################################
 errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u", replicates = 3, omit = FALSE)
 {
   ####### Basics ###############################################
@@ -417,8 +460,6 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
     model.frame = data.table::data.table(response = gA, predictor = gB)))
 }
 
-test <- errors.in.variables.lm(patients.adv.dim$A, patients.adv.dim$B)
-
 # A slightly faster deming lm function
 deming.lm <- function(method.A, method.B, replicates)
 {
@@ -432,7 +473,6 @@ deming.lm <- function(method.A, method.B, replicates)
   model <- data.table::data.table(response = df$A, predictor = df$B)
   return(list(residuals = residuals, fitted = fitted, coefficients = data.table::data.table(b0,b1), model.frame = model))
 }
-
 #9###### Methods of evaluation 3 : Deming regression prediction function #################################
 
 
@@ -550,7 +590,7 @@ bootstrap.pi <- function(method.A, method.B, B = 50, lower.range, upper.range, l
   return(pi = draws)
 }
 
-pidr.dim.cob <- bootstrap.pi(patients.dim.cob$A,patients.dim.cob$B, 2000, 4, 90, 0.99)
+pidr.dim.cob <- bootstrap.pi(patients.dim.cob$A,patients.dim.cob$B, 10000, 4, 90, 0.99)
 pidr.arc.adv <- bootstrap.pi(patients.arc.adv$A,patients.arc.adv$B, 1000, 4, 90, 0.99)
 pidr.adv.dim <- bootstrap.pi(patients.adv.dim$A,patients.adv.dim$B, 1000, 4, 90, 0.99)
 
