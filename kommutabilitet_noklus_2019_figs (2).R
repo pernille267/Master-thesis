@@ -693,4 +693,266 @@ get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.contro
 
 ####### Simulation function ############################################
 
+### We are simulating data ###
+# can be used both for Patient Samples and Controls, and we can change param between them to test models
+sim.data<- function(pairs, replicates, a, b, c, CVX, CVY, lower.limit, upper.limit)
+{
+  r <- replicates; n <- pairs
+  sample <- as.factor(rep(1:n, each = r))
+  replicat <- rep(1:r, each = 1, times = n)
+  y.true <- rep(runif(n, lower.limit, upper.limit), each = r)
+  tmp <- data.table::data.table(sample, replicat, y.true) %>% 
+    mutate(x.true = a * y.true ^ 2 + b * y.true + c) %>%
+    rowwise() %>%
+    mutate(A = y.true * (1 + rnorm(1, 0, CVY))) %>%
+    mutate(B = x.true * (1 + rnorm(1, 0, CVX)))
+  return(tmp)
+}
+
+# Simulate clinical samples - Forced linear
+simP.should.ok1 <- sim.data(pairs = 20, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
+simP.should.ok2 <- sim.data(pairs = 25, replicates = 4, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
+simP.should.ok3 <- sim.data(pairs = 30, replicates = 3, a = 0, b = 0.98, c = -0.7, CVX = 0.05, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simP.should.ok4 <- sim.data(pairs = 20, replicates = 4, a = 0, b = 0.90, c = -0.1, CVX = 0.03, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simP.should.ok5 <- sim.data(pairs = 24, replicates = 3, a = 0, b = 0.99, c = 1.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simP.should.ok6 <- sim.data(pairs = 23, replicates = 4, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
+simP.should.ok7 <- sim.data(pairs = 27, replicates = 3, a = 0, b = 0.98, c = -0.2, CVX = 0.03, CVY = 0.07, lower.limit = 5, upper.limit = 90)
+simP.should.ok8 <- sim.data(pairs = 25, replicates = 4, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simP.should.ok9 <- sim.data(pairs = 28, replicates = 3, a = 0, b = 1.09, c = -3.1, CVX = 0.07, CVY = 0.08, lower.limit = 5, upper.limit = 90)
+simP.should.ok10 <- sim.data(pairs = 26, replicates = 4, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
+
+# Simulate control samples - Forced linear
+simC.should.ok1 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
+simC.should.ok2 <- sim.data(pairs = 5, replicates = 4, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
+simC.should.ok3 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.98, c = -0.7, CVX = 0.05, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simC.should.ok4 <- sim.data(pairs = 3, replicates = 4, a = 0, b = 0.90, c = -0.1, CVX = 0.03, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simC.should.ok5 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.99, c = 1.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simC.should.ok6 <- sim.data(pairs = 6, replicates = 4, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
+simC.should.ok7 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.98, c = -0.2, CVX = 0.03, CVY = 0.07, lower.limit = 5, upper.limit = 90)
+simC.should.ok8 <- sim.data(pairs = 5, replicates = 4, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simC.should.ok9 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.09, c = -3.1, CVX = 0.07, CVY = 0.08, lower.limit = 5, upper.limit = 90)
+simC.should.ok10 <- sim.data(pairs = 4, replicates = 4, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
+
+### OLSR ###
+lmP.should.ok1 <- lm(data = simP.should.ok1, formula = A ~ B)
+lmP.should.ok2 <- lm(data = simP.should.ok2, formula = A ~ B)
+lmP.should.ok3 <- lm(data = simP.should.ok3, formula = A ~ B)
+lmP.should.ok4 <- lm(data = simP.should.ok4, formula = A ~ B)
+lmP.should.ok5 <- lm(data = simP.should.ok5, formula = A ~ B)
+lmP.should.ok6 <- lm(data = simP.should.ok6, formula = A ~ B)
+lmP.should.ok7 <- lm(data = simP.should.ok7, formula = A ~ B)
+lmP.should.ok8 <- lm(data = simP.should.ok8, formula = A ~ B)
+lmP.should.ok9 <- lm(data = simP.should.ok9, formula = A ~ B)
+lmP.should.ok10 <- lm(data = simP.should.ok10, formula = A ~ B)
+
+### OLSR - prediction ###
+predP.should.ok1 <- data.table::data.table(new = 5:110, predict(lmP.should.ok1, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok2 <- data.table::data.table(new = 5:110, predict(lmP.should.ok2, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok3 <- data.table::data.table(new = 5:110, predict(lmP.should.ok3, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok4 <- data.table::data.table(new = 5:110, predict(lmP.should.ok4, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok5 <- data.table::data.table(new = 5:110, predict(lmP.should.ok5, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok6 <- data.table::data.table(new = 5:110, predict(lmP.should.ok6, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok7 <- data.table::data.table(new = 5:110, predict(lmP.should.ok7, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok8 <- data.table::data.table(new = 5:110, predict(lmP.should.ok8, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok9 <- data.table::data.table(new = 5:110, predict(lmP.should.ok9, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+predP.should.ok10 <- data.table::data.table(new = 5:110, predict(lmP.should.ok10, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+
+### OLSR - Evaluation plots ###
+plotP.should.ok1 <- ggplot() +
+  geom_ribbon(data = predP.should.ok1, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = predP.should.ok1, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok1, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok1, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok2 <- ggplot() +
+  geom_ribbon(data = predP.should.ok2, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok2, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok2, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok2, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok3 <- ggplot() +
+  geom_ribbon(data = predP.should.ok3, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok3, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok3, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok3, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok4 <- ggplot() +
+  geom_ribbon(data = predP.should.ok4, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok4, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok4, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok4, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok5 <- ggplot() +
+  geom_ribbon(data = predP.should.ok5, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok5, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok5, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok5, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok6 <- ggplot() +
+  geom_ribbon(data = predP.should.ok6, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok6, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok6, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok6, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok7 <- ggplot() +
+  geom_ribbon(data = predP.should.ok7, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok7, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok7, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok7, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok8 <- ggplot() +
+  geom_ribbon(data = predP.should.ok8, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok8, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok8, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok8, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok9 <- ggplot() +
+  geom_ribbon(data = predP.should.ok9, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok9, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok9, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok9, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+plotP.should.ok10 <- ggplot() +
+  geom_ribbon(data = predP.should.ok10, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_line(data = predP.should.ok10, aes(x = new, y = fit), size = 1) +
+  geom_point(data = simP.should.ok10, aes(x = B, y = A), color = "purple") +
+  geom_point(data = simC.should.ok10, aes(x = B, y = A), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+
+
+plot(plotP.should.ok1);plot(plotP.should.ok2);plot(plotP.should.ok3)
+plot(plotP.should.ok4);plot(plotP.should.ok5);plot(plotP.should.ok6)
+plot(plotP.should.ok7);plot(plotP.should.ok8);plot(plotP.should.ok9)
+plot(plotP.should.ok10)
+
+
+### normality tests ###
+shapiro.test(residuals(lmP.should.ok1));shapiro.test(residuals(lmP.should.ok2));shapiro.test(residuals(lmP.should.ok3))
+shapiro.test(residuals(lmP.should.ok4));shapiro.test(residuals(lmP.should.ok5));shapiro.test(residuals(lmP.should.ok6))
+shapiro.test(residuals(lmP.should.ok7));shapiro.test(residuals(lmP.should.ok8));shapiro.test(residuals(lmP.should.ok9));shapiro.test(residuals(lmP.should.ok10))
+
+require(lmtest)
+### Almost every test fail regarding normality ###
+bptest(lmP.should.ok1);bptest(lmP.should.ok2);bptest(lmP.should.ok3)
+bptest(lmP.should.ok4);bptest(lmP.should.ok5)
+
+### Okay we stop there. Every test fail. ### 
+
+
+### Even though control materials seem to be commutable here ###
+### none of the requirements for linear fitting is met. ###
+### We can therefore not use any linear model with this ###
+### simulated data to get out something trustworthy ###
+
+
+### OLSR - log-log transformation ###
+log.lmP.should.ok1 <- lm(data = simP.should.ok1, formula = log(A) ~ log(B))
+log.lmP.should.ok2 <- lm(data = simP.should.ok2, formula = log(A) ~ log(B))
+log.lmP.should.ok3 <- lm(data = simP.should.ok3, formula = log(A) ~ log(B))
+log.lmP.should.ok4 <- lm(data = simP.should.ok4, formula = log(A) ~ log(B))
+log.lmP.should.ok5 <- lm(data = simP.should.ok5, formula = log(A) ~ log(B))
+log.lmP.should.ok6 <- lm(data = simP.should.ok6, formula = log(A) ~ log(B))
+log.lmP.should.ok7 <- lm(data = simP.should.ok7, formula = log(A) ~ log(B))
+log.lmP.should.ok8 <- lm(data = simP.should.ok8, formula = log(A) ~ log(B))
+log.lmP.should.ok9 <- lm(data = simP.should.ok9, formula = log(A) ~ log(B))
+log.lmP.should.ok10 <- lm(data = simP.should.ok10, formula = log(A) ~ log(B))
+
+### log-log - prediction ###
+log.predP.should.ok1 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok1, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok2 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok2, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok3 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok3, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok4 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok4, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok5 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok5, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok6 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok6, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok7 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok7, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok8 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok8, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok9 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok9, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok10 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok10, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+
+### OLSR - Evaluation plots ###
+log.plotP.should.ok1 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok1, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok1, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok1, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok1, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok2 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok2, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok2, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok2, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok2, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok3 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok3, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok3, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok3, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok3, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok4 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok4, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok4, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok4, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok4, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok5 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok5, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok5, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok5, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok5, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok6 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok6, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok6, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok6, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok6, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok7 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok7, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok7, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok7, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok7, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok8 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok8, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok8, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok8, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok8, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok9 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok9, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok9, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok9, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok9, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok10 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok10, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok10, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok10, aes(x = log(B), y = log(A)), color = "purple") +
+  geom_point(data = simC.should.ok10, aes(x = log(B), y = log(A)), color = "red") +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+
+
+plot(log.plotP.should.ok1);plot(log.plotP.should.ok2);plot(log.plotP.should.ok3)
+plot(log.plotP.should.ok4);plot(log.plotP.should.ok5);plot(log.plotP.should.ok6)
+plot(log.plotP.should.ok7);plot(log.plotP.should.ok8);plot(log.plotP.should.ok9);plot(log.plotP.should.ok10)
 
