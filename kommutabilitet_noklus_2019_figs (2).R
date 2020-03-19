@@ -381,11 +381,6 @@ dwtest(log.olsr.dim.cob)
 dwtest(log.olsr.adv.dim)
 
 
-
-
-
-
-
 estimate.lambda <- function(method.A, method.B, replicates = 3)
 {
   r <- replicates; n <- length(method.A) / r
@@ -477,60 +472,6 @@ deming.lm <- function(method.A, method.B, replicates)
 
 
 
-
-
-
-# Prediction interval for the regression line
-errors.in.variables.pi <- function(method.A = NULL, method.B = NULL, newdata = "auto", level = 0.95, replicates = 3, lambda = "u")
-{
-  if (newdata == "auto") {newdata <- seq(from = min(c(method.A, method.B)), to = max(c(method.A, method.B)), by = 0.01 * max(c(method.A, method.B)))}
-  alpha <- 1 - level
-  n <- length(method.A)
-  fit <- errors.in.variables.lm(method.A = method.A, method.B = method.B)
-  lambda <- if (lambda != "u") {lambda} else {fit$lambdas$lambda[1]}
-  b0 <- fit$coefficients$deming.coef[1]; b1 <- fit$coefficients$deming.coef[2]
-  cov.b0.b1 <- fit$covariance.matrix
-  sigma.uu <- fit$sigmas$sigma[2]; sigma.ee <- fit$sigmas$sigma[1]
-  t <- qt(1-alpha/2, n-2) # Uppper bound -t will be lower bound from symmetry
-  deming.pi.jackknife <- data.frame(newdata) %>%
-    mutate(y.pred = b0 + b1 * newdata) %>%
-    mutate(pred.se = jackknife.univariate(method.A = method.A, method.B = method.B, fit = newdata)$spot.se.error$std.error) %>%
-    mutate(lwr = y.pred - t*pred.se, upr = y.pred + t*pred.se)
-  return(deming.pi.jackknife)
-}
-
-# Testing prediction interval function
-errors.in.variables.pi(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B)
-errors.in.variables.pi(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B)
-errors.in.variables.pi(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B)
-
-# Is this allowed?
-jackknife.univariate <- function(method.A = NULL, method.B = NULL, lambda = "u", estimator = "pred.se", newdata = c(0))
-{
-  m <- length(method.A) # The number of pairs (A,B)
-  n <- length(newdata)
-  if (estimator == "pred.se" & n > 0)
-  {
-    fitt.values <- data.frame(matrix(0, nrow = m, ncol = n)) # data frame to be filled with pred.values
-    fitt.values[1,] <- errors.in.variables.lm(method.A = method.A, method.B = method.B, omit = FALSE, fit.vector = fit)$fit.values
-    df <- data.frame(A = method.A, B = method.B)
-    for (i in 1:(m-1))
-    {
-      one.out <- data.frame(df[-i,])
-      new.fit <- errors.in.variables.lm(method.A = one.out$A, method.B = one.out$B, omit = i, fit.vector = fit)$fit.values
-      fitt.values[(i+1),] <- new.fit
-    }  
-  }
-  first.fit <- as.numeric(rep(fitt.values[1,], m))
-  first.fit <- matrix(data = first.fit, ncol = n, nrow = m, byrow = TRUE)
-  pseudo.var <- m * first.fit - (m-1)*fitt.values
-  jack.estimator <- sapply(pseudo.var, FUN = mean)
-  jack.matrix <- matrix(data = as.numeric(rep(jack.estimator, m)), ncol = n, nrow = m, byrow = T)
-  jack.var <- sapply((1/(m-1))*(pseudo.var - jack.matrix)^2, FUN = sum)
-  jack.se <- sapply(jack.var, FUN = sqrt)
-  jack.mean.se <- mean(jack.se)
-  return(list(jack.std.error.mean = jack.mean.se, spot.se.error = data.frame(row.names = 1:n, std.error = jack.se)))
-}  
 
 #################################### Testing the jackknife method ##############
 jackknife.univariate(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, estimator = "pred.se")
@@ -693,6 +634,8 @@ get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.contro
 
 ####### Simulation function ############################################
 
+set.seed(333)
+
 ### We are simulating data ###
 # can be used both for Patient Samples and Controls, and we can change param between them to test models
 sim.data<- function(pairs, replicates, a, b, c, CVX, CVY, lower.limit, upper.limit)
@@ -705,33 +648,34 @@ sim.data<- function(pairs, replicates, a, b, c, CVX, CVY, lower.limit, upper.lim
     mutate(x.true = a * y.true ^ 2 + b * y.true + c) %>%
     rowwise() %>%
     mutate(A = y.true * (1 + rnorm(1, 0, CVY))) %>%
-    mutate(B = x.true * (1 + rnorm(1, 0, CVX)))
+    mutate(B = x.true * (1 + rnorm(1, 0, CVX))) %>%
+    mutate(ld = log(A) - log(B), mm = (A+B)/2)
   return(tmp)
 }
 
 # Simulate clinical samples - Forced linear
-simP.should.ok1 <- sim.data(pairs = 20, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
-simP.should.ok2 <- sim.data(pairs = 25, replicates = 4, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
-simP.should.ok3 <- sim.data(pairs = 30, replicates = 3, a = 0, b = 0.98, c = -0.7, CVX = 0.05, CVY = 0.01, lower.limit = 5, upper.limit = 90)
-simP.should.ok4 <- sim.data(pairs = 20, replicates = 4, a = 0, b = 0.90, c = -0.1, CVX = 0.03, CVY = 0.01, lower.limit = 5, upper.limit = 90)
-simP.should.ok5 <- sim.data(pairs = 24, replicates = 3, a = 0, b = 0.99, c = 1.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
-simP.should.ok6 <- sim.data(pairs = 23, replicates = 4, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
-simP.should.ok7 <- sim.data(pairs = 27, replicates = 3, a = 0, b = 0.98, c = -0.2, CVX = 0.03, CVY = 0.07, lower.limit = 5, upper.limit = 90)
-simP.should.ok8 <- sim.data(pairs = 25, replicates = 4, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
-simP.should.ok9 <- sim.data(pairs = 28, replicates = 3, a = 0, b = 1.09, c = -3.1, CVX = 0.07, CVY = 0.08, lower.limit = 5, upper.limit = 90)
-simP.should.ok10 <- sim.data(pairs = 26, replicates = 4, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
+simP.should.ok1 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
+simP.should.ok2 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
+simP.should.ok3 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.98, c = -0.7, CVX = 0.05, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simP.should.ok4 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.90, c = -0.1, CVX = 0.03, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simP.should.ok5 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.99, c = 1.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simP.should.ok6 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
+simP.should.ok7 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.98, c = -0.2, CVX = 0.03, CVY = 0.07, lower.limit = 5, upper.limit = 90)
+simP.should.ok8 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simP.should.ok9 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.09, c = -3.1, CVX = 0.07, CVY = 0.08, lower.limit = 5, upper.limit = 90)
+simP.should.ok10 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
 
 # Simulate control samples - Forced linear
 simC.should.ok1 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
-simC.should.ok2 <- sim.data(pairs = 5, replicates = 4, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
+simC.should.ok2 <- sim.data(pairs = 5, replicates = 3, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
 simC.should.ok3 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.98, c = -0.7, CVX = 0.05, CVY = 0.01, lower.limit = 5, upper.limit = 90)
-simC.should.ok4 <- sim.data(pairs = 3, replicates = 4, a = 0, b = 0.90, c = -0.1, CVX = 0.03, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simC.should.ok4 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.90, c = -0.1, CVX = 0.03, CVY = 0.01, lower.limit = 5, upper.limit = 90)
 simC.should.ok5 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.99, c = 1.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
-simC.should.ok6 <- sim.data(pairs = 6, replicates = 4, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
+simC.should.ok6 <- sim.data(pairs = 6, replicates = 3, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
 simC.should.ok7 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.98, c = -0.2, CVX = 0.03, CVY = 0.07, lower.limit = 5, upper.limit = 90)
-simC.should.ok8 <- sim.data(pairs = 5, replicates = 4, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simC.should.ok8 <- sim.data(pairs = 5, replicates = 3, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
 simC.should.ok9 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.09, c = -3.1, CVX = 0.07, CVY = 0.08, lower.limit = 5, upper.limit = 90)
-simC.should.ok10 <- sim.data(pairs = 4, replicates = 4, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
+simC.should.ok10 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
 
 ### OLSR ###
 lmP.should.ok1 <- lm(data = simP.should.ok1, formula = A ~ B)
@@ -761,71 +705,71 @@ predP.should.ok10 <- data.table::data.table(new = 5:110, predict(lmP.should.ok10
 plotP.should.ok1 <- ggplot() +
   geom_ribbon(data = predP.should.ok1, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
   geom_line(data = predP.should.ok1, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok1, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok1, aes(x = B, y = A), color = "red") +
+  geom_point(data = simP.should.ok1, aes(x = B, y = A), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok1, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok2 <- ggplot() +
   geom_ribbon(data = predP.should.ok2, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok2, aes(x = new, y = fit), size = 1) +
   geom_point(data = simP.should.ok2, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok2, aes(x = B, y = A), color = "red") +
+  geom_point(data = simC.should.ok2, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok3 <- ggplot() +
   geom_ribbon(data = predP.should.ok3, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok3, aes(x = new, y = fit), size = 1) +
   geom_point(data = simP.should.ok3, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok3, aes(x = B, y = A), color = "red") +
+  geom_point(data = simC.should.ok3, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok4 <- ggplot() +
   geom_ribbon(data = predP.should.ok4, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok4, aes(x = new, y = fit), size = 1) +
   geom_point(data = simP.should.ok4, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok4, aes(x = B, y = A), color = "red") +
+  geom_point(data = simC.should.ok4, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok5 <- ggplot() +
   geom_ribbon(data = predP.should.ok5, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok5, aes(x = new, y = fit), size = 1) +
   geom_point(data = simP.should.ok5, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok5, aes(x = B, y = A), color = "red") +
+  geom_point(data = simC.should.ok5, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok6 <- ggplot() +
   geom_ribbon(data = predP.should.ok6, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok6, aes(x = new, y = fit), size = 1) +
   geom_point(data = simP.should.ok6, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok6, aes(x = B, y = A), color = "red") +
+  geom_point(data = simC.should.ok6, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok7 <- ggplot() +
   geom_ribbon(data = predP.should.ok7, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok7, aes(x = new, y = fit), size = 1) +
   geom_point(data = simP.should.ok7, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok7, aes(x = B, y = A), color = "red") +
+  geom_point(data = simC.should.ok7, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok8 <- ggplot() +
   geom_ribbon(data = predP.should.ok8, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok8, aes(x = new, y = fit), size = 1) +
   geom_point(data = simP.should.ok8, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok8, aes(x = B, y = A), color = "red") +
+  geom_point(data = simC.should.ok8, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok9 <- ggplot() +
   geom_ribbon(data = predP.should.ok9, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok9, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok9, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok9, aes(x = B, y = A), color = "red") +
+  geom_point(data = simP.should.ok9, aes(x = B, y = A), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok9, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok10 <- ggplot() +
   geom_ribbon(data = predP.should.ok10, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok10, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok10, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok10, aes(x = B, y = A), color = "red") +
+  geom_point(data = simP.should.ok10, aes(x = B, y = A), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok10, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 
@@ -835,19 +779,16 @@ plot(plotP.should.ok4);plot(plotP.should.ok5);plot(plotP.should.ok6)
 plot(plotP.should.ok7);plot(plotP.should.ok8);plot(plotP.should.ok9)
 plot(plotP.should.ok10)
 
-
 ### normality tests ###
 shapiro.test(residuals(lmP.should.ok1));shapiro.test(residuals(lmP.should.ok2));shapiro.test(residuals(lmP.should.ok3))
 shapiro.test(residuals(lmP.should.ok4));shapiro.test(residuals(lmP.should.ok5));shapiro.test(residuals(lmP.should.ok6))
 shapiro.test(residuals(lmP.should.ok7));shapiro.test(residuals(lmP.should.ok8));shapiro.test(residuals(lmP.should.ok9));shapiro.test(residuals(lmP.should.ok10))
 
-require(lmtest)
 ### Almost every test fail regarding normality ###
 bptest(lmP.should.ok1);bptest(lmP.should.ok2);bptest(lmP.should.ok3)
 bptest(lmP.should.ok4);bptest(lmP.should.ok5)
 
 ### Okay we stop there. Every test fail. ### 
-
 
 ### Even though control materials seem to be commutable here ###
 ### none of the requirements for linear fitting is met. ###
@@ -956,3 +897,87 @@ plot(log.plotP.should.ok1);plot(log.plotP.should.ok2);plot(log.plotP.should.ok3)
 plot(log.plotP.should.ok4);plot(log.plotP.should.ok5);plot(log.plotP.should.ok6)
 plot(log.plotP.should.ok7);plot(log.plotP.should.ok8);plot(log.plotP.should.ok9);plot(log.plotP.should.ok10)
 
+
+### Normality tests ###
+shapiro.test(residuals(log.lmP.should.ok1))
+shapiro.test(residuals(log.lmP.should.ok2))
+shapiro.test(residuals(log.lmP.should.ok3))
+shapiro.test(residuals(log.lmP.should.ok4))
+shapiro.test(residuals(log.lmP.should.ok5))
+shapiro.test(residuals(log.lmP.should.ok6))
+shapiro.test(residuals(log.lmP.should.ok7))
+shapiro.test(residuals(log.lmP.should.ok8))
+shapiro.test(residuals(log.lmP.should.ok9))
+shapiro.test(residuals(log.lmP.should.ok10))
+
+### Equal variance tests ###
+bptest(log.lmP.should.ok1)
+bptest(log.lmP.should.ok2)
+bptest(log.lmP.should.ok3)
+bptest(log.lmP.should.ok4)
+bptest(log.lmP.should.ok5)
+bptest(log.lmP.should.ok6)
+bptest(log.lmP.should.ok7)
+bptest(log.lmP.should.ok8)
+bptest(log.lmP.should.ok9)
+bptest(log.lmP.should.ok10)
+
+
+### BA
+
+### Bland-Altman ###
+
+ba.lmP.should.ok1 <- lm(data = simP.should.ok1, formula = ld ~ poly(mm, 2))
+ba.predP.should.ok1 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok1, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+
+
+ba.plotP.should.ok1 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok1, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok1, aes(x = new, y = fit), color = "black", size = 1) +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok1, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok1, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok2 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok2, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok2, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok3 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok3, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok3, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok4 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok4, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok4, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok5 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok5, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok5, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok6 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok6, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok6, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok7 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok7, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok7, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok8 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok8, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok8, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok9 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok9, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok9, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+ba.plotP.should.ok10 <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) + 
+  geom_point(data = simP.should.ok10, aes(x = mm, y=ld), color = "purple", size = 2) +
+  geom_point(data = simC.should.ok10, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+
+
+plot(ba.plotP.should.ok1);plot(ba.plotP.should.ok2);plot(ba.plotP.should.ok3)
+plot(ba.plotP.should.ok4);plot(ba.plotP.should.ok5);plot(ba.plotP.should.ok6)
+plot(ba.plotP.should.ok7);plot(ba.plotP.should.ok8);plot(ba.plotP.should.ok9);plot(ba.plotP.should.ok10)
+
+ba.lmP.should.ok1 <- lm(data = simP.should.ok1, formula = ld ~ poly(mm, 2))
+ba.predP.should.ok1 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok1, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
