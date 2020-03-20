@@ -1,14 +1,22 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load("tidyverse", "splines", "brms", "readxl", "mgcv", 
                "merTools", "gridExtra", "grid", "ggplot2", "microbenchmark",
-               "car", "lme4", "lmtest")
-
+               "car", "lme4", "lmtest", "foreach", "doParallel")
+set.seed(112)
 ############# Loading data ###################
 setwd("C:/Users/Eier/Downloads")
 patients_crp_org <- read_excel('crp_pasient.xlsx')
 controls_crp_org <- read_excel('crp_control.xlsx')
+##############################################
+### Parallel cores used ######################
+library(doParallel)
+clusterobj<-makeCluster(4)
+registerDoParallel(clusterobj)
+##############################################
 
-################### Data: Architect vs Advia ###########################
+
+
+#a######## Data: Architect vs Advia ###########################
 patients.arc.adv <- patients_crp_org %>%
   dplyr::select(sample, replicat, "Architect", "Advia") %>%
   na.omit %>%
@@ -26,7 +34,7 @@ controls.arc.adv <- dplyr::select(controls_crp_org, sample, replicat, "Architect
   group_by(sample, replicat) %>%
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
 
-######### Data: Dimension vs Cobas #####################################
+#b######## Data: Dimension vs Cobas #####################################
 patients.dim.cob <- patients_crp_org %>%
   dplyr::select(sample, replicat, "Dimension", "Cobas") %>%
   na.omit %>%
@@ -44,7 +52,7 @@ controls.dim.cob <- dplyr::select(controls_crp_org, sample, replicat, "Dimension
   group_by(sample, replicat) %>%
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
 
-######### Data: Advia vs. Dimension ############################################
+#c######## Data: Advia vs. Dimension ############################################
 patients.adv.dim <- patients_crp_org %>%
   dplyr::select(sample, replicat, "Advia", "Dimension") %>%
   na.omit %>%
@@ -277,6 +285,7 @@ plot3c <- ggplot() +
 plot(plot3a); plot(plot3b); plot(plot3c)
 
 #6##### Log-log plots with ols and prediction bands ############################
+
 log.olsr.arc.adv <- lm(data = patients.arc.adv, formula = log(A) ~ log(B))
 log.olsr.dim.cob <- lm(data = patients.dim.cob, formula = log(A) ~ log(B))
 log.olsr.adv.dim <- lm(data = patients.adv.dim, formula = log(A) ~ log(B))
@@ -326,7 +335,7 @@ plot(plot4a); plot(plot4b); plot(plot4c)
 grid.arrange(plot2a,plot4a, nrow = 1)
 grid.arrange(plot2b,plot4b, nrow = 1)
 grid.arrange(plot2c,plot4c, nrow = 1)
-#7##### Residual plots ########################
+#7##### Residual plots and formal tests ########################
 
 plot5a <- ggplot(mapping = aes(x = fitted.values(olsr.arc.adv), y = residuals(olsr.arc.adv))) +
   geom_point(color = "black", shape = 17, size = 2) + geom_hline(yintercept = 0, size = 1) +
@@ -366,19 +375,19 @@ grid.arrange(plot5c, plot5f, nrow = 1)
 
 ##### Formal tests
 # Normality
-shapiro.test(residuals(log.olsr.arc.adv))
-shapiro.test(residuals(log.olsr.dim.cob))
-shapiro.test(residuals(log.olsr.adv.dim))
+s1<-shapiro.test(residuals(log.olsr.arc.adv))
+s2<-shapiro.test(residuals(log.olsr.dim.cob))
+s3<-shapiro.test(residuals(log.olsr.adv.dim))
 
 # Homoscedasticy
-bptest(log.olsr.arc.adv)
-bptest(log.olsr.dim.cob)
-bptest(log.olsr.adv.dim)
+b1<-bptest(log.olsr.arc.adv)
+b2<-bptest(log.olsr.dim.cob)
+b3<-bptest(log.olsr.adv.dim)
 
 # Autocorrelation
-dwtest(log.olsr.arc.adv)
-dwtest(log.olsr.dim.cob)
-dwtest(log.olsr.adv.dim)
+d1<-dwtest(log.olsr.arc.adv)
+d2<-dwtest(log.olsr.dim.cob)
+d3<-dwtest(log.olsr.adv.dim)
 
 
 estimate.lambda <- function(method.A, method.B, replicates = 3)
@@ -397,6 +406,20 @@ estimate.lambda <- function(method.A, method.B, replicates = 3)
 #7##### Methods of evaluation 2 :  Bland-Altman and polynomial regression (Needs work)
 #8##### Methods of evaluation 2 : BA-plot + polynomial regression
 #8##### Deming regression function ############################################
+
+estimate.lambda <- function(method.A, method.B, replicates = 3)
+{
+  r <- replicates; n <- length(method.A) / r
+  replicat <- sort(rep(1:r, n)); sample <- rep(1:n, r)
+  df <- data.table::data.table(sample = sample, replicat = replicat, A = method.A, B = method.B) %>%
+    group_by(sample) %>%
+    mutate(mA = mean(A), mB = mean(B)) %>%
+    mutate(YmM = (A - mA)^2, XmM = (B - mB)^2)
+  sigma.ee <- (sum(df$YmM)) / (n*r - n)
+  sigma.uu <- (sum(df$XmM)) / (n*r - n)
+  return(lambda = sigma.ee / sigma.uu)
+}
+
 errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u", replicates = 3, omit = FALSE)
 {
   ####### Basics ###############################################
@@ -455,7 +478,7 @@ errors.in.variables.lm <- function(method.A = NULL, method.B = NULL, lambda = "u
     model.frame = data.table::data.table(response = gA, predictor = gB)))
 }
 
-# A slightly faster deming lm function
+### A slightly faster deming lm function - Only essentials ###
 deming.lm <- function(method.A, method.B, replicates)
 {
   df <- data.table::data.table(sample = rep(1:(length(method.A)/replicates)), replicat = rep(1:replicates, length(method.A)/replicates), A = method.A, B = method.B)
@@ -468,19 +491,14 @@ deming.lm <- function(method.A, method.B, replicates)
   model <- data.table::data.table(response = df$A, predictor = df$B)
   return(list(residuals = residuals, fitted = fitted, coefficients = data.table::data.table(b0,b1), model.frame = model))
 }
-#9###### Methods of evaluation 3 : Deming regression prediction function #################################
 
+test.lm<-deming.lm(patients.adv.dim$A,patients.adv.dim$B,3)
+test.lm$coefficients$b0
+test.lm$coefficients$b1
 
+#9##### Methods of evaluation 3 : Deming regression prediction function #################################
 
-
-#################################### Testing the jackknife method ##############
-jackknife.univariate(method.A = patients.dim.cob$A, method.B = patients.dim.cob$B, estimator = "pred.se")
-jackknife.univariate(method.A = patients.arc.adv$A, method.B = patients.arc.adv$B, estimator = "pred.se")
-jackknife.univariate(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B, estimator = "pred.se")
-################################################################################
-
-
-##### PI with bootstrap technique
+##### PI with bootstrap technique #####
 get.leverage <- function(method.B = NULL)
 {
   design.matrix <- as.matrix(data.table::data.table(ones = rep(1, length(method.B)), B = method.B))  
@@ -489,18 +507,19 @@ get.leverage <- function(method.B = NULL)
   return(leverage)
 }
 
-get.sample <- function(method.A, method.B, replicates = 3, lower.range, upper.range)
+get.sample <- function(method.A, method.B, replicates = 3, new)
 {
   fit <- deming.lm(method.A = method.A, method.B = method.B, replicates = 3)
-  y.p <- fit$coefficients$b0 + fit$coefficients$b1 * (lower.range:upper.range)
+  y.p <- fit$coefficients$b0 + fit$coefficients$b1 * new
   residuals <- fit$residuals
   adjusted.residuals <- (residuals)/(sqrt(1 - get.leverage(method.B)))
   s <- adjusted.residuals - mean(adjusted.residuals)
   return(list(s = s, y.p = y.p, fit = fit))
 }
 
+test.gs <- get.sample(patients.adv.dim$A,patients.adv.dim$B, 3, 20)
 
-bootstrap.resample <- function(s, fit, pred.point = 10, replicates = 3, lower.range, upper.range)
+bootstrap.resample <- function(s, fit, replicates = 3, new)
 {
   s.bs <- sample(s,length(s),replace = T)
   y.bs.fit <- unlist(fitted(fit))+s.bs; r <- replicates
@@ -510,35 +529,48 @@ bootstrap.resample <- function(s, fit, pred.point = 10, replicates = 3, lower.ra
   adjusted.residuals.new <- (residuals.new)/(sqrt(1 - get.leverage(x)))
   s.bs <- adjusted.residuals.new - mean(adjusted.residuals.new) 
   error.fit <- fit$coefficients$b0 - fit.new$coefficients$b0
-  error.fit <- error.fit + (fit$coefficients$b1 - fit.new$coefficients$b1)*pred.point
+  error.fit <- error.fit + (fit$coefficients$b1 - fit.new$coefficients$b1)*new
   return((unname(error.fit + sample(s.bs, size=1))))
 }
 
-bootstrap.pi <- function(method.A, method.B, B = 50, lower.range, upper.range, level = 0.99)
+bootstrap.resample(test.gs$s, test.gs$fit, 3, 20)
+
+bootstrap.pred <- function(method.A, method.B, resamples = 50, new)
 {
-  sample <- get.sample(method.A, method.B, replicates = 3, lower.range, upper.range)
-  npv <- upper.range - lower.range + 1
-  draws <- data.table::data.table(matrix(0, nrow = B, ncol = npv))
-  for (i in lower.range:upper.range) {
-    draws[,(i + 1 - lower.range)] <- 
-    replicate(n = B, expr = bootstrap.resample(s = sample$s, fit = sample$fit, pred.point = i))
-  }
-  draws <- data.table::data.table(t(sapply(X = draws, FUN = quantile, probs = c(1-level,level)))) %>%
-  mutate(pred.values = as.double(lower.range:upper.range), fitted = sample$fit$coefficients$b0 + sample$fit$coefficients$b1*(lower.range:upper.range)) %>%
-  rename(lwr = paste(as.character((1 - level)*100), "%", sep = ""),
-         upr = paste(as.character((level)*100), "%", sep = "")) %>%
-  mutate(lwr = round(lwr + fitted, 3), upr = round(upr + fitted, 3), fitted = round(fitted, 3))
-  return(pi = draws)
+  sample <- get.sample(method.A, method.B, replicates = 3, new = new)
+  B <- resamples
+  draws <- replicate(n = B, expr = bootstrap.resample(s = sample$s, fit = sample$fit, new = new))
+  return(draws)
 }
 
-pidr.dim.cob <- bootstrap.pi(patients.dim.cob$A,patients.dim.cob$B, 10000, 4, 90, 0.99)
-pidr.arc.adv <- bootstrap.pi(patients.arc.adv$A,patients.arc.adv$B, 1000, 4, 90, 0.99)
-pidr.adv.dim <- bootstrap.pi(patients.adv.dim$A,patients.adv.dim$B, 1000, 4, 90, 0.99)
+bootstrap.pred(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B,
+             resamples = 100,  new = 20)
 
-############ Plots of deming with 99% prediction interval ######################
+bootstrap.predictInterval <- function(method.A, method.B, resamples, level, upr, lwr)
+{
+  s <- get.sample(method.A,method.B,3,4)
+  fit <- s$fit; s <- s$s; alpha<- 1-level;N<-resamples
+  A<-method.A;B<-method.B; new<-lwr:upr
+  df<- data.table::data.table(foreach(i=lwr:upr, .packages = c("dplyr", "tidyverse"), .export = c("bootstrap.pred","get.sample", "deming.lm","estimate.lambda","get.leverage", "bootstrap.resample"), .combine=cbind) %dopar% bootstrap.pred(A,B,N,i))
+  df<- data.table::data.table(t(sapply(X=df,FUN=quantile,probs=c(alpha/2, 1 - alpha/2)))) %>%
+    mutate(pred = fit$coefficients$b0 + fit$coefficients$b1 * new)  
+  return(data.table::data.table(new = new, pred = df[,3], lwr=df[,1] + df[,3],upr=df[,2] + df[,3]))
+}
+
+pidr.dim.cob <- bootstrap.predictInterval(patients.dim.cob$A,patients.dim.cob$B, 2500, 0.99, 100, 0)
+pidr.arc.adv <- bootstrap.predictInterval(patients.arc.adv$A,patients.arc.adv$B, 2500, 0.99, 100, 0)
+pidr.adv.dim <- bootstrap.predictInterval(patients.adv.dim$A,patients.adv.dim$B, 2500, 0.99, 100, 0)
+
+
+
+
+
+view(pidr.dim.cob)
+
+
+#10#### Plots of deming with 99% prediction interval ######################
 plot6a <- ggplot() +
-  geom_ribbon(data = pidr.dim.cob, aes(x = pred.values, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-  geom_line(data = pidr.dim.cob, aes(x = pred.values, y = fitted), size = 0.2, color = "black") +
+  geom_ribbon(data = pidr.dim.cob, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
   geom_point(data = patients.dim.cob, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.dim.cob, aes(x = B, y = A), color = "red") +
   xlab("Cobas") +
@@ -555,8 +587,8 @@ plot6b <- ggplot() +
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
 
 plot6c <- ggplot() +
-  geom_ribbon(data = pidr.adv.dim, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-  geom_line(data = pidr.adv.dim, aes(x = newdata, y = fitted), size = 0.2, color = "black") +
+  geom_ribbon(data = pidr.adv.dim, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_line(data = pidr.adv.dim, aes(x = new, y = fitted), size = 0.2, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.adv.dim, aes(x = B, y = A), color = "red") +
   xlab("Dimension") +
@@ -564,75 +596,13 @@ plot6c <- ggplot() +
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
 
 # Plots - Deming regression + prediction bands
+
 plot(plot6a)
 plot(plot6b)
 plot(plot6c)
 
-#10##### Methods of evaluation 4 : Deming regression including variability of control materials
-get.confidence.region <- function(method.A = NULL, method.B = NULL, replicates = 3, level = 0.95, normality = TRUE)
-{
-  alpha <- 1 - level
-  r <- replicates
-  n <- ceiling(length(method.A) / r)
-  if (normality == TRUE)
-  {
-    t <- qt(1 - alpha / 2, df = r-1)
-    df.A.B <- data.frame(sample = rep(1:n, r), replicat = sort(rep(1:r,n)), A = method.A, B = method.B) %>%
-      group_by(sample) %>%
-      mutate(mA = mean(A), mB = mean(B)) %>%
-      mutate(sd.A = sd(A), sd.B = sd(B))
-    print(df.A.B)
-    
-    anova.A <- lmer(data = df.A.B, REML = FALSE, formula = A ~ (1 | sample))
-    anova.B <- lmer(data = df.A.B, REML = FALSE, formula = B ~ (1 | sample))
-    sigma.ee.hat <- as.data.frame(VarCorr(anova.A))[2, 4]
-    sigma.uu.hat <- as.data.frame(VarCorr(anova.B))[2, 4]
-    df.A.B <- df.A.B %>% 
-      mutate(lwrA = mA - t * (sd.A/sqrt(r)), uprA = mA + t * (sd.A/sqrt(r))) %>%
-      mutate(lwrB = mB - t * (sd.B/sqrt(r)), uprB = mB + t * (sd.B/sqrt(r)))
-    return(df.A.B[,5:12])
-    
-  }
-  else
-  {
-    return("hey, still do not know how to deal with lack of normality cases")
-    df.A.B <- data.frame(sample = rep(1:n, r), replicat = rep(1:r,n), A = method.A, B = method.B)
-    lambda.hat = sigma.ee.hat/sigma.uu.hat
-  }
-}
 
-# Testing function
-get.confidence.region(method.A = controls.dim.cob$A, method.B = controls.dim.cob$B, normality = T)
-get.confidence.region(method.A = controls.arc.adv$A, method.B = controls.arc.adv$B, normality = T)
-get.confidence.region(method.A = controls.adv.dim$A, method.B = controls.adv.dim$B, normality = T)
-
-# Commutability plot
-get.commutability.plot.1 <- function(method.A.controls = NULL, method.B.controls = NULL, method.A.patients = NULL, method.B.patients = NULL, level.pred = 0.99, level.conf = 0.95, replicates = 3, lambda = "u", method.names = c("method A","method B"))
-{
-  r <- replicates; n <- ceiling(length(method.A.patients)/r); m <- ceiling(length(method.A.controls)/r); N <- n*r; M <- m*r
-  pred <- errors.in.variables.pi(method.A = method.A.patients, method.B = method.B.patients)
-  df.A.B.controls <- data.frame(sample = rep(1:m,r), replicat = sort(rep(1:r,m)), A = method.A.controls, B = method.B.controls) %>%
-    bind_cols(get.confidence.region(method.A = method.A.controls, method.B = method.B.controls, level = level.conf))
-  print(df.A.B.controls)
-  df.A.B.patients <- data.frame(sample = rep(1:n,r), replicat = sort(rep(1:r,n)), A = method.A.patients, B = method.B.patients)
-  print(df.A.B.patients)
-  cp <- ggplot() +
-    geom_ribbon(data = pred, aes(x = newdata, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-    geom_line(data = pred, aes(x = newdata, y = y.pred), size = 0.2, linetype = "dashed", color = "black", alpha = 0.5) +
-    geom_point(data = df.A.B.patients, aes(x = B, y = A), color = "blue", alpha = 0.8) +
-    geom_rect(data = df.A.B.controls, aes(xmin = lwrB, xmax = uprB, ymin = lwrA, ymax = uprA), fill = "black", color = "black", alpha = 0.1) +
-    geom_point(data = df.A.B.controls, aes(x = mB, y = mA), color = "red", shape = 18, size = 3) +
-    xlab(method.names[2]) +
-    ylab(method.names[1]) + 
-    labs(title = "Commutability plot", subtitle = paste(... = "green region is ",as.character(0.99*100),"%"," prediction bands", " and control material samples consist of ", as.character(level.conf * 100),"%"," confidence intervals", sep = ""))
-  plot(cp)
-}
-
-get.commutability.plot.1(method.A.controls = controls.adv.dim$A, method.B.controls = controls.adv.dim$B, method.A.patients = patients.adv.dim$A, method.B.patients = patients.adv.dim$B, method.names = c("Advia", "Dimension"))
-get.commutability.plot.1(method.A.controls = controls.dim.cob$A, method.B.controls = controls.dim.cob$B, method.A.patients = patients.dim.cob$A, method.B.patients = patients.dim.cob$B, method.names = c("Dimension", "Cobas"))
-get.commutability.plot.1(method.A.controls = controls.arc.adv$A, method.B.controls = controls.arc.adv$B, method.A.patients = patients.arc.adv$A, method.B.patients = patients.arc.adv$B, method.names = c("Architect", "Advia"))
-
-####### Simulation function ############################################
+#11#### Simulation ############################################
 
 set.seed(333)
 
@@ -928,9 +898,31 @@ bptest(log.lmP.should.ok10)
 ### Bland-Altman ###
 
 ba.lmP.should.ok1 <- lm(data = simP.should.ok1, formula = ld ~ poly(mm, 2))
+ba.lmP.should.ok2 <- lm(data = simP.should.ok2, formula = ld ~ poly(mm, 2))
+ba.lmP.should.ok3 <- lm(data = simP.should.ok3, formula = ld ~ mm)
+ba.lmP.should.ok4 <- lm(data = simP.should.ok4, formula = ld ~ mm)
+ba.lmP.should.ok5 <- lm(data = simP.should.ok5, formula = ld ~ poly(mm,2))
+ba.lmP.should.ok6 <- lm(data = simP.should.ok6, formula = ld ~ poly(mm,2))
+ba.lmP.should.ok7 <- lm(data = simP.should.ok7, formula = ld ~ mm)
+ba.lmP.should.ok8 <- lm(data = simP.should.ok8, formula = ld ~ mm)
+ba.lmP.should.ok9 <- lm(data = simP.should.ok9, formula = ld ~ poly(mm,3))
+ba.lmP.should.ok10 <- lm(data = simP.should.ok10, formula = ld ~ mm)
+
+
+### Predict ###
 ba.predP.should.ok1 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok1, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok2 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok2, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok3 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok3, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok4 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok4, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok5 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok5, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok6 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok6, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok7 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok7, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok8 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok8, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok9 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok9, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+ba.predP.should.ok10 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok10, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
 
 
+### BA-plots ###
 ba.plotP.should.ok1 <- ggplot() +
   geom_ribbon(data = ba.predP.should.ok1, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok1, aes(x = new, y = fit), color = "black", size = 1) +
@@ -938,38 +930,56 @@ ba.plotP.should.ok1 <- ggplot() +
   geom_point(data = simP.should.ok1, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok1, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok2 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok2, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok2, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok2, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok2, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok3 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok3, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok3, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok3, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok3, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok4 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok4, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok4, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok4, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok4, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok5 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok5, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok5, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok5, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok5, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok6 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok6, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok6, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok6, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok6, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok7 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok7, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok7, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok7, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok7, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok8 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok8, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok8, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok8, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok8, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok9 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok9, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok9, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok9, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok9, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok10 <- ggplot() +
+  geom_ribbon(data = ba.predP.should.ok10, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_line(data = ba.predP.should.ok10, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
   geom_point(data = simP.should.ok10, aes(x = mm, y=ld), color = "purple", size = 2) +
   geom_point(data = simC.should.ok10, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
@@ -981,3 +991,11 @@ plot(ba.plotP.should.ok7);plot(ba.plotP.should.ok8);plot(ba.plotP.should.ok9);pl
 
 ba.lmP.should.ok1 <- lm(data = simP.should.ok1, formula = ld ~ poly(mm, 2))
 ba.predP.should.ok1 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok1, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
+
+
+
+
+
+
+
+
