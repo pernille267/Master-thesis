@@ -492,11 +492,18 @@ deming.lm <- function(method.A, method.B, replicates)
   return(list(residuals = residuals, fitted = fitted, coefficients = data.table::data.table(b0,b1), model.frame = model))
 }
 
-test.lm<-deming.lm(patients.adv.dim$A,patients.adv.dim$B,3)
-test.lm$coefficients$b0
-test.lm$coefficients$b1
-
 #9##### Methods of evaluation 3 : Deming regression prediction function #################################
+##### Standard error with jackknife technique #####
+get.se <- function(method.A,method.B,replicates)
+{
+  s.oo <- t(foreach(i=1:length(method.A), .combine = cbind, .export = c("deming.lm","estimate.lambda"), .packages = "dplyr") %dopar% t(deming.lm(method.A[-i],method.B[-i], replicates)$coefficients))
+  s.org <- deming.lm(method.A,method.B,replicates)$coefficients; N<-length(method.A)
+  s.org <- data.table::data.table(b0 = rep(s.org$b0,N),b1=rep(s.org$b1,N))  
+  s.pse <- N * s.org - (N-1)*s.oo
+  jfv <- sapply(s.pse,var)
+  jfse <- sqrt(jfv/N)
+  return(jfse)
+}
 
 ##### PI with bootstrap technique #####
 get.leverage <- function(method.B = NULL)
@@ -517,8 +524,6 @@ get.sample <- function(method.A, method.B, replicates = 3, new)
   return(list(s = s, y.p = y.p, fit = fit))
 }
 
-test.gs <- get.sample(patients.adv.dim$A,patients.adv.dim$B, 3, 20)
-
 bootstrap.resample <- function(s, fit, replicates = 3, new)
 {
   s.bs <- sample(s,length(s),replace = T)
@@ -533,8 +538,6 @@ bootstrap.resample <- function(s, fit, replicates = 3, new)
   return((unname(error.fit + sample(s.bs, size=1))))
 }
 
-bootstrap.resample(test.gs$s, test.gs$fit, 3, 20)
-
 bootstrap.pred <- function(method.A, method.B, resamples = 50, new)
 {
   sample <- get.sample(method.A, method.B, replicates = 3, new = new)
@@ -542,9 +545,6 @@ bootstrap.pred <- function(method.A, method.B, resamples = 50, new)
   draws <- replicate(n = B, expr = bootstrap.resample(s = sample$s, fit = sample$fit, new = new))
   return(draws)
 }
-
-bootstrap.pred(method.A = patients.adv.dim$A, method.B = patients.adv.dim$B,
-             resamples = 100,  new = 20)
 
 bootstrap.predictInterval <- function(method.A, method.B, resamples, level, upr, lwr)
 {
@@ -562,15 +562,10 @@ pidr.arc.adv <- bootstrap.predictInterval(patients.arc.adv$A,patients.arc.adv$B,
 pidr.adv.dim <- bootstrap.predictInterval(patients.adv.dim$A,patients.adv.dim$B, 2500, 0.99, 100, 0)
 
 
-
-
-
-view(pidr.dim.cob)
-
-
 #10#### Plots of deming with 99% prediction interval ######################
 plot6a <- ggplot() +
   geom_ribbon(data = pidr.dim.cob, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_line(data = pidr.dim.cob, aes(x=new,y=pred)) +
   geom_point(data = patients.dim.cob, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.dim.cob, aes(x = B, y = A), color = "red") +
   xlab("Cobas") +
@@ -578,8 +573,8 @@ plot6a <- ggplot() +
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
 
 plot6b <- ggplot() +
-  geom_ribbon(data = pidr.arc.adv, aes(x = pred.values, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-  geom_line(data = pidr.arc.adv, aes(x = pred.values, y = fitted), size = 0.2, color = "black") +
+  geom_ribbon(data = pidr.arc.adv, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_line(data = pidr.arc.adv, aes(x = new, y = pred), size = 0.2, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.arc.adv, aes(x = B, y = A), color = "red") +
   xlab("Architect") +
@@ -588,7 +583,7 @@ plot6b <- ggplot() +
 
 plot6c <- ggplot() +
   geom_ribbon(data = pidr.adv.dim, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
-  geom_line(data = pidr.adv.dim, aes(x = new, y = fitted), size = 0.2, color = "black") +
+  geom_line(data = pidr.adv.dim, aes(x = new, y = pred), size = 0.2, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.adv.dim, aes(x = B, y = A), color = "red") +
   xlab("Dimension") +
@@ -600,7 +595,6 @@ plot6c <- ggplot() +
 plot(plot6a)
 plot(plot6b)
 plot(plot6c)
-
 
 #11#### Simulation ############################################
 
@@ -989,9 +983,8 @@ plot(ba.plotP.should.ok1);plot(ba.plotP.should.ok2);plot(ba.plotP.should.ok3)
 plot(ba.plotP.should.ok4);plot(ba.plotP.should.ok5);plot(ba.plotP.should.ok6)
 plot(ba.plotP.should.ok7);plot(ba.plotP.should.ok8);plot(ba.plotP.should.ok9);plot(ba.plotP.should.ok10)
 
-ba.lmP.should.ok1 <- lm(data = simP.should.ok1, formula = ld ~ poly(mm, 2))
-ba.predP.should.ok1 <- data.table::data.table(new = 0:100, predict(ba.lmP.should.ok1, interval = "prediction", level = 0.99, newdata = list(mm = 0:100)))
 
+### Deming procedure ###
 
 
 
