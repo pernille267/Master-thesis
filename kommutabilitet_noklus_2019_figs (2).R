@@ -505,6 +505,38 @@ get.se <- function(method.A,method.B,replicates)
   return(jfse)
 }
 
+
+## Standard errors of our comparison studies ##
+get.se(patients.arc.adv$A, patients.arc.adv$B, 3)
+get.se(patients.dim.cob$A,patients.dim.cob$B, 3)
+get.se(patients.adv.dim$A, patients.adv.dim$B, 3)
+
+## Coefficients ##
+deming.lm(patients.arc.adv$A, patients.arc.adv$B, 3)$coefficients
+deming.lm(patients.dim.cob$A, patients.dim.cob$B, 3)$coefficients
+deming.lm(patients.adv.dim$A, patients.adv.dim$B, 3)$coefficients
+
+
+## Residual plots - DR ##
+
+
+
+
+
+
+
+
+###################################
+## Must be made manually I think
+## Shapiro for DR ##
+
+## BP for DR  ##
+
+## DW for DR ##
+
+#################################
+
+
 ##### PI with bootstrap technique #####
 get.leverage <- function(method.B = NULL)
 {
@@ -577,8 +609,8 @@ plot6b <- ggplot() +
   geom_line(data = pidr.arc.adv, aes(x = new, y = pred), size = 0.2, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = B, y = A), color = "blue", alpha = 0.8) +
   geom_point(data = controls.arc.adv, aes(x = B, y = A), color = "red") +
-  xlab("Architect") +
-  ylab("Advia") + 
+  xlab("Advia") +
+  ylab("Architect") + 
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
 
 plot6c <- ggplot() +
@@ -616,6 +648,8 @@ sim.data<- function(pairs, replicates, a, b, c, CVX, CVY, lower.limit, upper.lim
     mutate(ld = log(A) - log(B), mm = (A+B)/2)
   return(tmp)
 }
+
+set.seed(3323)
 
 # Simulate clinical samples - Forced linear
 simP.should.ok1 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
@@ -985,10 +1019,30 @@ plot(ba.plotP.should.ok7);plot(ba.plotP.should.ok8);plot(ba.plotP.should.ok9);pl
 
 
 ### Deming procedure ###
+pred.fit.dr.should.ok1 <- bootstrap.predictInterval(method.A = simP.should.ok1$A, method.B = simP.should.ok1$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok2 <- bootstrap.predictInterval(method.A = simP.should.ok2$A, method.B = simP.should.ok2$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok3 <- bootstrap.predictInterval(method.A = simP.should.ok3$A, method.B = simP.should.ok3$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok4 <- bootstrap.predictInterval(method.A = simP.should.ok4$A, method.B = simP.should.ok4$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok5 <- bootstrap.predictInterval(method.A = simP.should.ok5$A, method.B = simP.should.ok5$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok6 <- bootstrap.predictInterval(method.A = simP.should.ok6$A, method.B = simP.should.ok6$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok7 <- bootstrap.predictInterval(method.A = simP.should.ok7$A, method.B = simP.should.ok7$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok8 <- bootstrap.predictInterval(method.A = simP.should.ok8$A, method.B = simP.should.ok8$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok9 <- bootstrap.predictInterval(method.A = simP.should.ok9$A, method.B = simP.should.ok9$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok10 <- bootstrap.predictInterval(method.A = simP.should.ok10$A, method.B = simP.should.ok10$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+
+
+dr.plotP.should.ok1 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok1, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok1, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok1, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok1, aes(x=B,y=A), color = "red", size = 4,shape=17) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
 
 
 
 
 
 
+plot(dr.plotP.should.ok1)
 
