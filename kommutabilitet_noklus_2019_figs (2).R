@@ -1,7 +1,7 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load("tidyverse", "splines", "brms", "readxl", "mgcv", 
                "merTools", "gridExtra", "grid", "ggplot2", "microbenchmark",
-               "car", "lme4", "lmtest", "foreach", "doParallel")
+               "car", "lme4", "lmtest", "foreach", "doParallel","segmented")
 set.seed(112)
 ############# Loading data ###################
 setwd("C:/Users/Eier/Downloads")
@@ -512,12 +512,28 @@ get.se(patients.dim.cob$A,patients.dim.cob$B, 3)
 get.se(patients.adv.dim$A, patients.adv.dim$B, 3)
 
 ## Coefficients ##
-deming.lm(patients.arc.adv$A, patients.arc.adv$B, 3)$coefficients
-deming.lm(patients.dim.cob$A, patients.dim.cob$B, 3)$coefficients
-deming.lm(patients.adv.dim$A, patients.adv.dim$B, 3)$coefficients
-
+k1<-data.table::data.table(fitted = deming.lm(patients.arc.adv$A, patients.arc.adv$B, 3)$fitted, residuals = deming.lm(patients.arc.adv$A, patients.arc.adv$B, 3)$residuals)
+k2<-data.table::data.table(fitted = deming.lm(patients.dim.cob$A, patients.dim.cob$B, 3)$fitted, residuals = deming.lm(patients.dim.cob$A, patients.dim.cob$B, 3)$residuals)
+k3<-data.table::data.table(fitted = deming.lm(patients.adv.dim$A, patients.adv.dim$B, 3)$fitted, residuals = deming.lm(patients.adv.dim$A, patients.adv.dim$B, 3)$residuals)
 
 ## Residual plots - DR ##
+
+ggplot() + geom_hline(yintercept = 0, size = 1) +
+  geom_point(data = k1, aes(x = fitted, y = residuals)) +
+  ylab("Residuals") + xlab("Fitted values") +
+  labs(title = "Residual vs. fitted plot", subtitle = "Architect vs. Advia")
+ggplot() + geom_hline(yintercept = 0, size = 1) +
+  geom_point(data = k2, aes(x = fitted, y = residuals)) +
+  ylab("Residuals") + xlab("Fitted values") +
+  labs(title = "Residual vs. fitted plot", subtitle = "Dimension vs. Cobas")
+ggplot() + geom_hline(yintercept = 0, size = 1) +
+  geom_point(data = k3, aes(x = fitted, y = residuals)) +
+  ylab("Residuals") + xlab("Fitted values") +
+  labs(title = "Residual vs. fitted plot", subtitle = "Advia vs. Dimension")
+
+
+
+
 
 
 
@@ -665,15 +681,15 @@ simP.should.ok10 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.04, c = -2
 
 # Simulate control samples - Forced linear
 simC.should.ok1 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
-simC.should.ok2 <- sim.data(pairs = 5, replicates = 3, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
-simC.should.ok3 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.98, c = -0.7, CVX = 0.05, CVY = 0.01, lower.limit = 5, upper.limit = 90)
+simC.should.ok2 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.97, c = -0.8, CVX = 0.03, CVY = 0.02, lower.limit = 5, upper.limit = 90)
+simC.should.ok3 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.98, c = -0.7, CVX = 0.05, CVY = 0.01, lower.limit = 5, upper.limit = 90)
 simC.should.ok4 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.90, c = -0.1, CVX = 0.03, CVY = 0.01, lower.limit = 5, upper.limit = 90)
-simC.should.ok5 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.99, c = 1.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
-simC.should.ok6 <- sim.data(pairs = 6, replicates = 3, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
-simC.should.ok7 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 0.98, c = -0.2, CVX = 0.03, CVY = 0.07, lower.limit = 5, upper.limit = 90)
-simC.should.ok8 <- sim.data(pairs = 5, replicates = 3, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simC.should.ok5 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.99, c = 1.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
+simC.should.ok6 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.02, c = 1.9, CVX = 0.05, CVY = 0.03, lower.limit = 5, upper.limit = 90)
+simC.should.ok7 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.98, c = -0.2, CVX = 0.03, CVY = 0.07, lower.limit = 5, upper.limit = 90)
+simC.should.ok8 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.12, c = -0.2, CVX = 0.01, CVY = 0.05, lower.limit = 5, upper.limit = 90)
 simC.should.ok9 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.09, c = -3.1, CVX = 0.07, CVY = 0.08, lower.limit = 5, upper.limit = 90)
-simC.should.ok10 <- sim.data(pairs = 4, replicates = 3, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
+simC.should.ok10 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.04, c = -2.2, CVX = 0.03, CVY = 0.1, lower.limit = 5, upper.limit = 90)
 
 ### OLSR ###
 lmP.should.ok1 <- lm(data = simP.should.ok1, formula = A ~ B)
@@ -701,73 +717,73 @@ predP.should.ok10 <- data.table::data.table(new = 5:110, predict(lmP.should.ok10
 
 ### OLSR - Evaluation plots ###
 plotP.should.ok1 <- ggplot() +
-  geom_ribbon(data = predP.should.ok1, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = predP.should.ok1, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = predP.should.ok1, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok1, aes(x = B, y = A), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok1, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok1, aes(x = B, y = A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok1, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok2 <- ggplot() +
-  geom_ribbon(data = predP.should.ok2, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok2, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok2, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok2, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok2, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok2, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok2, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok3 <- ggplot() +
-  geom_ribbon(data = predP.should.ok3, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok3, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok3, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok3, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok3, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok3, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok3, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok4 <- ggplot() +
-  geom_ribbon(data = predP.should.ok4, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok4, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok4, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok4, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok4, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok4, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok4, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok5 <- ggplot() +
-  geom_ribbon(data = predP.should.ok5, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok5, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok5, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok5, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok5, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok5, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok5, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok6 <- ggplot() +
-  geom_ribbon(data = predP.should.ok6, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok6, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok6, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok6, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok6, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok6, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok6, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok7 <- ggplot() +
-  geom_ribbon(data = predP.should.ok7, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok7, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok7, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok7, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok7, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok7, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok7, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok8 <- ggplot() +
-  geom_ribbon(data = predP.should.ok8, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok8, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok8, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok8, aes(x = B, y = A), color = "purple") +
-  geom_point(data = simC.should.ok8, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok8, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok8, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok9 <- ggplot() +
-  geom_ribbon(data = predP.should.ok9, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok9, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok9, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok9, aes(x = B, y = A), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok9, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok9, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok9, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 plotP.should.ok10 <- ggplot() +
-  geom_ribbon(data = predP.should.ok10, aes(x = new, ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3) +
+  geom_ribbon(data = predP.should.ok10, aes(x = new, ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3) +
   geom_line(data = predP.should.ok10, aes(x = new, y = fit), size = 1) +
-  geom_point(data = simP.should.ok10, aes(x = B, y = A), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok10, aes(x = B, y = A), color = "red", size = 3, shape = 17) +
+  geom_point(data = simP.should.ok10, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok10, aes(x = B, y = A, shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 
@@ -820,73 +836,73 @@ log.predP.should.ok10 <- data.table::data.table(new = 5:110, predict(log.lmP.sho
 
 ### OLSR - Evaluation plots ###
 log.plotP.should.ok1 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok1, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok1, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok1, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok1, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok1, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok1, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok1, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok2 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok2, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok2, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok2, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok2, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok2, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok2, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok2, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok3 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok3, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok3, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok3, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok3, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok3, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok3, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok3, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok4 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok4, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok4, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok4, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok4, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok4, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok4, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok4, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok5 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok5, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok5, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok5, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok5, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok5, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok5, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok5, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok6 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok6, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok6, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok6, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok6, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok6, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok6, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok6, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok7 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok7, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok7, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok7, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok7, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok7, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok7, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok7, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok8 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok8, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok8, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok8, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok8, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok8, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok8, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok8, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok9 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok9, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok9, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok9, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok9, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok9, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok9, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok9, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 log.plotP.should.ok10 <- ggplot() +
-  geom_ribbon(data = log.predP.should.ok10, aes(x = log(new), ymin = lwr, ymax = upr), fill = "cyan", color = "black", alpha = .3, size = 1) +
+  geom_ribbon(data = log.predP.should.ok10, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
   geom_line(data = log.predP.should.ok10, aes(x = log(new), y = fit), size = 1) +
-  geom_point(data = simP.should.ok10, aes(x = log(B), y = log(A)), color = "purple") +
-  geom_point(data = simC.should.ok10, aes(x = log(B), y = log(A)), color = "red") +
+  geom_point(data = simP.should.ok10, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok10, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
   ylab("Measurement method A") + xlab("Measurement method B") +
   labs(title = "Measurement method A vs. Measurement method B")
 
@@ -952,97 +968,262 @@ ba.predP.should.ok10 <- data.table::data.table(new = 0:100, predict(ba.lmP.shoul
 
 ### BA-plots ###
 ba.plotP.should.ok1 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok1, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok1, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok1, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok1, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok1, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok1, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok1, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok2 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok2, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok2, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok2, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok2, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok2, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok2, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok2, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok3 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok3, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok3, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok3, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok3, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok3, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok3, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok3, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok4 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok4, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok4, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok4, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok4, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok4, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok4, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok4, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok5 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok5, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok5, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok5, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok5, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok5, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok5, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok5, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok6 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok6, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok6, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok6, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok6, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok6, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok6, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok6, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok7 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok7, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok7, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok7, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok7, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok7, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok7, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok7, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok8 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok8, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok8, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok8, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok8, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok8, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok8, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok8, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok9 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok9, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok9, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok9, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok9, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok9, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok9, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok9, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 ba.plotP.should.ok10 <- ggplot() +
-  geom_ribbon(data = ba.predP.should.ok10, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "cyan", alpha = 0.5, size = 1) +
+  geom_ribbon(data = ba.predP.should.ok10, aes(x = new, ymax = upr, ymin = lwr), color = "black", fill = "yellow", alpha = 0.5, size = 1) +
   geom_line(data = ba.predP.should.ok10, aes(x = new, y = fit), color = "black", size = 1) +
   geom_hline(yintercept = 0, size = 1) + 
-  geom_point(data = simP.should.ok10, aes(x = mm, y=ld), color = "purple", size = 2) +
-  geom_point(data = simC.should.ok10, aes(x = mm, y=ld), color = "red", size = 3, shape = 17)
+  geom_point(data = simP.should.ok10, aes(x = mm, y=ld), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok10, aes(x = mm, y=ld, shape = sample), color = "red", size = 3, shape = 17)
 
 
 plot(ba.plotP.should.ok1);plot(ba.plotP.should.ok2);plot(ba.plotP.should.ok3)
 plot(ba.plotP.should.ok4);plot(ba.plotP.should.ok5);plot(ba.plotP.should.ok6)
 plot(ba.plotP.should.ok7);plot(ba.plotP.should.ok8);plot(ba.plotP.should.ok9);plot(ba.plotP.should.ok10)
 
+## Formal tests ##
+shapiro.test(residuals(ba.lmP.should.ok1))
+shapiro.test(residuals(ba.lmP.should.ok2))
+shapiro.test(residuals(ba.lmP.should.ok3))
+shapiro.test(residuals(ba.lmP.should.ok4))
+shapiro.test(residuals(ba.lmP.should.ok5))
+shapiro.test(residuals(ba.lmP.should.ok6))
+shapiro.test(residuals(ba.lmP.should.ok7))
+shapiro.test(residuals(ba.lmP.should.ok8))
+shapiro.test(residuals(ba.lmP.should.ok9))
+shapiro.test(residuals(ba.lmP.should.ok10))
+
+bptest(ba.lmP.should.ok1)
+bptest(ba.lmP.should.ok2)
+bptest(ba.lmP.should.ok3)
+bptest(ba.lmP.should.ok4)
+bptest(ba.lmP.should.ok5)
+bptest(ba.lmP.should.ok6)
+bptest(ba.lmP.should.ok7)
+bptest(ba.lmP.should.ok8)
+bptest(ba.lmP.should.ok9)
+bptest(ba.lmP.should.ok10)
+
 
 ### Deming procedure ###
-pred.fit.dr.should.ok1 <- bootstrap.predictInterval(method.A = simP.should.ok1$A, method.B = simP.should.ok1$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok2 <- bootstrap.predictInterval(method.A = simP.should.ok2$A, method.B = simP.should.ok2$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok3 <- bootstrap.predictInterval(method.A = simP.should.ok3$A, method.B = simP.should.ok3$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok4 <- bootstrap.predictInterval(method.A = simP.should.ok4$A, method.B = simP.should.ok4$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok5 <- bootstrap.predictInterval(method.A = simP.should.ok5$A, method.B = simP.should.ok5$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok6 <- bootstrap.predictInterval(method.A = simP.should.ok6$A, method.B = simP.should.ok6$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok7 <- bootstrap.predictInterval(method.A = simP.should.ok7$A, method.B = simP.should.ok7$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok8 <- bootstrap.predictInterval(method.A = simP.should.ok8$A, method.B = simP.should.ok8$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok9 <- bootstrap.predictInterval(method.A = simP.should.ok9$A, method.B = simP.should.ok9$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
-pred.fit.dr.should.ok10 <- bootstrap.predictInterval(method.A = simP.should.ok10$A, method.B = simP.should.ok10$B, resamples = 2500, upr = 120, lwr = 0, level = 0.99)
+pred.fit.dr.should.ok1 <- bootstrap.predictInterval(method.A = simP.should.ok1$A, method.B = simP.should.ok1$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok1$A,simP.should.ok1$B))), lwr = floor(min(pmin(simP.should.ok1$A,simP.should.ok1$B))), level = 0.99)
+pred.fit.dr.should.ok2 <- bootstrap.predictInterval(method.A = simP.should.ok2$A, method.B = simP.should.ok2$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok2$A,simP.should.ok2$B))), lwr = floor(min(pmin(simP.should.ok2$A,simP.should.ok2$B))), level = 0.99)
+pred.fit.dr.should.ok3 <- bootstrap.predictInterval(method.A = simP.should.ok3$A, method.B = simP.should.ok3$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok3$A,simP.should.ok3$B))), lwr = floor(min(pmin(simP.should.ok3$A,simP.should.ok3$B))), level = 0.99)
+pred.fit.dr.should.ok4 <- bootstrap.predictInterval(method.A = simP.should.ok4$A, method.B = simP.should.ok4$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok4$A,simP.should.ok4$B))), lwr = floor(min(pmin(simP.should.ok4$A,simP.should.ok4$B))), level = 0.99)
+pred.fit.dr.should.ok5 <- bootstrap.predictInterval(method.A = simP.should.ok5$A, method.B = simP.should.ok5$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok5$A,simP.should.ok5$B))), lwr = floor(min(pmin(simP.should.ok5$A,simP.should.ok5$B))), level = 0.99)
+pred.fit.dr.should.ok6 <- bootstrap.predictInterval(method.A = simP.should.ok6$A, method.B = simP.should.ok6$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok6$A,simP.should.ok6$B))), lwr = floor(min(pmin(simP.should.ok6$A,simP.should.ok6$B))), level = 0.99)
+pred.fit.dr.should.ok7 <- bootstrap.predictInterval(method.A = simP.should.ok7$A, method.B = simP.should.ok7$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok7$A,simP.should.ok7$B))), lwr = floor(min(pmin(simP.should.ok7$A,simP.should.ok7$B))), level = 0.99)
+pred.fit.dr.should.ok8 <- bootstrap.predictInterval(method.A = simP.should.ok8$A, method.B = simP.should.ok8$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok8$A,simP.should.ok8$B))), lwr = floor(min(pmin(simP.should.ok8$A,simP.should.ok8$B))), level = 0.99)
+pred.fit.dr.should.ok9 <- bootstrap.predictInterval(method.A = simP.should.ok9$A, method.B = simP.should.ok9$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok9$A,simP.should.ok9$B))), lwr = floor(min(pmin(simP.should.ok9$A,simP.should.ok9$B))), level = 0.99)
+pred.fit.dr.should.ok10 <- bootstrap.predictInterval(method.A = simP.should.ok10$A, method.B = simP.should.ok10$B, resamples = 5000, upr = ceiling(max(pmax(simP.should.ok10$A,simP.should.ok10$B))), lwr = floor(min(pmin(simP.should.ok10$A,simP.should.ok10$B))), level = 0.99)
 
 
 dr.plotP.should.ok1 <- ggplot() +
   geom_ribbon(data = pred.fit.dr.should.ok1, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
   geom_line(data = pred.fit.dr.should.ok1, aes(x=new,y=pred), size = 1) +
   geom_point(data = simP.should.ok1, aes(x=B,y=A), color = "blue", size = 2) +
-  geom_point(data = simC.should.ok1, aes(x=B,y=A), color = "red", size = 4,shape=17) +
+  geom_point(data = simC.should.ok1, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok2 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok2, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok2, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok2, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok2, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok3 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok3, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok3, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok3, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok3, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok4 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok4, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok4, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok4, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok4, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok5 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok5, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok5, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok5, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok5, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok6 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok6, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok6, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok6, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok6, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok7 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok7, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok7, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok7, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok7, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok8 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok8, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok8, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok8, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok8, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok9 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok9, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok9, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok9, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok9, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
+  xlab("Measurement method B") + ylab("Measurement method A") +
+  labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
+dr.plotP.should.ok10 <- ggplot() +
+  geom_ribbon(data = pred.fit.dr.should.ok10, aes(x=new,ymin=lwr,ymax=upr),color="black",fill="yellow",size=1,alpha=0.5) +
+  geom_line(data = pred.fit.dr.should.ok10, aes(x=new,y=pred), size = 1) +
+  geom_point(data = simP.should.ok10, aes(x=B,y=A), color = "blue", size = 2) +
+  geom_point(data = simC.should.ok10, aes(x=B,y=A, shape = sample), color = "red", size = 4) +
   xlab("Measurement method B") + ylab("Measurement method A") +
   labs(title = "A vs. B", subtitle = "Blue: Clinicals; Red: Controls")
 
+plot(dr.plotP.should.ok1);plot(dr.plotP.should.ok2);plot(dr.plotP.should.ok3)
+plot(dr.plotP.should.ok4);plot(dr.plotP.should.ok5);plot(dr.plotP.should.ok6)
+plot(dr.plotP.should.ok7);plot(dr.plotP.should.ok8);plot(dr.plotP.should.ok9);plot(dr.plotP.should.ok10)
+
+
+## Segmented regression ##
+SR.should.ok1 <- segmented.lm(lmP.should.ok1)
+SR.should.ok2 <- segmented.lm(lmP.should.ok2)
+SR.should.ok3 <- segmented.lm(lmP.should.ok3)
+SR.should.ok4 <- segmented.lm(lmP.should.ok4)
+SR.should.ok5 <- segmented.lm(lmP.should.ok5)
+SR.should.ok6 <- segmented.lm(lmP.should.ok6)
+SR.should.ok7 <- segmented.lm(lmP.should.ok7)
+SR.should.ok8 <- segmented.lm(lmP.should.ok8)
+SR.should.ok9 <- segmented.lm(lmP.should.ok9)
+SR.should.ok10 <- segmented.lm(lmP.should.ok10)
+
+## Predictions ##
+pred.SR.should.ok1 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok1, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok2 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok2, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok3 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok3, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok4 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok4, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok5 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok5, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok6 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok6, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok7 <-data.table::data.table(new = 0:max(pmax(simP.should.ok7$A,simP.should.ok7$A)), predict.segmented(SR.should.ok7, newdata = data.frame(B = 0:max(pmax(simP.should.ok7$A,simP.should.ok7$A))), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok8 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok8, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok9 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok9, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+pred.SR.should.ok10 <-data.table::data.table(new = 0:100, predict.segmented(SR.should.ok10, newdata = data.frame(B = 0:100), level = 0.99, interval = "prediction")) 
+
+
+plot.SR.should.ok1 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok1, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok1, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok1, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok2 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok2, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok2, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok2, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok3 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok3, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok3, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok3, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok4 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok4, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok4, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok4, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok5 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok5, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok5, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok5, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok6 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok6, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok6, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok6, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok7 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok7, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok7, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok7, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok8 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok8, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok8, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok8, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok9 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok9, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok9, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok9, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+plot.SR.should.ok10 <- ggplot() +
+  geom_ribbon(data = pred.SR.should.ok10, aes(x = new, ymin = lwr,ymax = upr), fill = "yellow", color = "black", size =1, alpha = 0.3) +
+  geom_point(data = simP.should.ok10, aes(x = B, y = A), color = "blue") +
+  geom_point(data = simC.should.ok10, aes(x = B, y = A, shape = sample), color = "red", size = 4)
+
+
+plot(plot.SR.should.ok1);plot(plot.SR.should.ok2);plot(plot.SR.should.ok3)
+plot(plot.SR.should.ok4);plot(plot.SR.should.ok5);plot(plot.SR.should.ok6)
+plot(plot.SR.should.ok7);plot(plot.SR.should.ok8);plot(plot.SR.should.ok9)
+plot(plot.SR.should.ok10)
 
 
 
 
 
-plot(dr.plotP.should.ok1)
+
+
+
+
 
