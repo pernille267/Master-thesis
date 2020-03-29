@@ -15,12 +15,12 @@ registerDoParallel(clusterobj)
 ##############################################
 
 
-
 #a######## Data: Architect vs Advia ###########################
 patients.arc.adv <- patients_crp_org %>%
   dplyr::select(sample, replicat, "Architect", "Advia") %>%
   na.omit %>%
   rename(A = "Architect", B = "Advia") %>%
+  mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
   group_by(sample, replicat) %>%
@@ -29,6 +29,7 @@ patients.arc.adv <- patients_crp_org %>%
 controls.arc.adv <- dplyr::select(controls_crp_org, sample, replicat, "Architect", "Advia") %>% 
   na.omit %>%
   rename(A = "Architect", B = "Advia") %>%
+  mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
   group_by(sample, replicat) %>%
@@ -39,6 +40,7 @@ patients.dim.cob <- patients_crp_org %>%
   dplyr::select(sample, replicat, "Dimension", "Cobas") %>%
   na.omit %>%
   rename(A = "Dimension", B = "Cobas") %>%
+  mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
   group_by(sample, replicat) %>%
@@ -47,6 +49,7 @@ patients.dim.cob <- patients_crp_org %>%
 controls.dim.cob <- dplyr::select(controls_crp_org, sample, replicat, "Dimension", "Cobas") %>% 
   na.omit %>%
   rename(A = "Dimension", B = "Cobas") %>%
+  mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
   group_by(sample, replicat) %>%
@@ -57,6 +60,7 @@ patients.adv.dim <- patients_crp_org %>%
   dplyr::select(sample, replicat, "Advia", "Dimension") %>%
   na.omit %>%
   rename(A = "Advia", B = "Dimension") %>%
+  mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
   group_by(sample, replicat) %>%
@@ -65,10 +69,12 @@ patients.adv.dim <- patients_crp_org %>%
 controls.adv.dim <- dplyr::select(controls_crp_org, sample, replicat, "Advia", "Dimension") %>% 
   na.omit %>%
   rename(A = "Advia", B = "Dimension") %>%
+  mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
   group_by(sample, replicat) %>%
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
+
 
 #1##### Standard scatter plots regarding two measurement methods ###############
 # Architect vs Advia
@@ -148,7 +154,7 @@ plot2a <- ggplot() +
   geom_ribbon(data = pred.arc.adv, aes(x = new, ymin = lwr, ymax = upr), fill = "green", alpha = 0.3, color = "black") +
   geom_abline(intercept = intercept.arc.adv, slope = slope.arc.adv, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = B, y = A), color  = "blue") +
-  geom_point(data = controls.arc.adv, aes(x = B, y = A), color = "red") +
+  geom_point(data = controls.arc.adv, aes(x = B, y = A, shape = sample), size = 3, color = "red") +
   labs(title = "Architect vs. Advia", subtitle = "With 99% prediction bands") +
   ylab("Architect") +
   xlab("Advia")
@@ -158,7 +164,7 @@ plot2b <- ggplot() +
   geom_ribbon(data = pred.dim.cob, aes(x = new, ymin = lwr, ymax = upr), fill = "green", alpha = 0.3, color = "black") +
   geom_abline(intercept = intercept.dim.cob, slope = slope.dim.cob, color = "black") +
   geom_point(data = patients.dim.cob, aes(x = B, y = A), color  = "blue") +
-  geom_point(data = controls.dim.cob, aes(x = B, y = A), color = "red") +
+  geom_point(data = controls.dim.cob, aes(x = B, y = A, shape = sample), size = 3, color = "red") +
   labs(title = "Dimension vs. Cobas", subtitle = "With 99% prediction bands") +
   ylab("Dimension") +
   xlab("Cobas")
@@ -168,7 +174,7 @@ plot2c <- ggplot() +
   geom_ribbon(data = pred.adv.dim, aes(x = new, ymin = lwr, ymax = upr), fill = "green", alpha = 0.3, color = "black") +
   geom_abline(intercept = intercept.adv.dim, slope = slope.adv.dim, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = B, y = A), color  = "blue") +
-  geom_point(data = controls.adv.dim, aes(x = B, y = A), color = "red") +
+  geom_point(data = controls.adv.dim, aes(x = B, y = A, shape = sample), size = 3, color = "red") +
   labs(title = "Advia vs. Dimension", subtitle = "With 99% prediction bands") +
   ylab("Advia") +
   xlab("Dimension")
@@ -181,7 +187,7 @@ plot2d <- ggplot() +
   geom_ribbon(data = mean.pred.arc.adv, aes(x = new, ymin = lwr, ymax = upr), fill = "green", alpha = 0.3, color = "black") +
   geom_abline(intercept = mean.intercept.arc.adv, slope = mean.slope.arc.adv, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = mB, y = mA), color  = "blue") +
-  geom_point(data = controls.arc.adv, aes(x = mB, y = mA), color = "red") +
+  geom_point(data = controls.arc.adv, aes(x = mB, y = mA, shape = sample), size = 3, color = "red") +
   labs(title = "OLSR with MOR", subtitle = "With 99% prediciton bands") +
   ylab("Architect") +
   xlab("Advia")
@@ -191,7 +197,7 @@ plot2e <- ggplot() +
   geom_ribbon(data = mean.pred.dim.cob, aes(x = new, ymin = lwr, ymax = upr), fill = "green", alpha = 0.3, color = "black") +
   geom_abline(intercept = mean.intercept.dim.cob, slope = mean.slope.dim.cob, color = "black") +
   geom_point(data = patients.dim.cob, aes(x = mB, y = mA), color  = "blue") +
-  geom_point(data = controls.dim.cob, aes(x = mB, y = mA), color = "red") +
+  geom_point(data = controls.dim.cob, aes(x = mB, y = mA, shape = sample), size = 3, color = "red") +
   labs(title = "OLSR with MOR", subtitle = "With 99% prediciton bands") +
   ylab("Dimension") +
   xlab("Cobas")
@@ -201,7 +207,7 @@ plot2f <- ggplot() +
   geom_ribbon(data = mean.pred.adv.dim, aes(x = new, ymin = lwr, ymax = upr), fill = "green", alpha = 0.3, color = "black") +
   geom_abline(intercept = mean.intercept.adv.dim, slope = mean.slope.adv.dim, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = mB, y = mA), color  = "blue") +
-  geom_point(data = controls.adv.dim, aes(x = mB, y = mA), color = "red") +
+  geom_point(data = controls.adv.dim, aes(x = mB, y = mA, shape = sample), size = 3, color = "red") +
   labs(title = "OLSR with MOR", subtitle = "Green ribbon is 99% prediciton bands") +
   ylab("Advia") +
   xlab("Dimension")
@@ -643,6 +649,91 @@ plot6c <- ggplot() +
 plot(plot6a)
 plot(plot6b)
 plot(plot6c)
+
+###### Regression splines ######
+
+# Models
+spline.arc.adv.lm <- lm(data = patients.arc.adv, formula = A ~ ns(B, knots = c(30, 60)))
+spline.dim.cob.lm <- lm(data = patients.dim.cob, formula = A ~ ns(B, knots = c(30, 60)))
+spline.adv.dim.lm <- lm(data = patients.adv.dim, formula = A ~ ns(B, knots = c(30, 60)))
+# predictions
+spline.arc.adv.pred <- data.table::data.table(new = 3:95, predict(spline.arc.adv.lm,newdata = list(B=3:95),level = 0.99,interval = "prediction"))
+spline.dim.cob.pred <- data.table::data.table(new = 3:95, predict(spline.dim.cob.lm,newdata = list(B=3:95),level = 0.99,interval = "prediction"))
+spline.adv.dim.pred <- data.table::data.table(new = 3:95, predict(spline.adv.dim.lm,newdata = list(B=3:95),level = 0.99,interval = "prediction"))
+
+# Plots
+spline.plot.arc.adv <- ggplot() +
+  geom_ribbon(data = spline.arc.adv.pred, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", size = 1, alpha = 0.3) +
+  geom_line(data = spline.arc.adv.pred, aes(x = new, y = fit), color = "gray", alpha = 0.8, size = 1) +
+  geom_vline(xintercept = c(30, 60), size = 1, linetype = "dashed") +
+  geom_point(data = patients.arc.adv, aes(x = B, y = A), color = "blue") +
+  geom_point(data = controls.arc.adv, aes(x = B, y = A, shape = sample), color = "red") +
+  xlab("Advia") + ylab("Architect") +
+  labs(title = "Regression splines assessment evaluation",
+       subtitle = "Architect vs. Advia (dashed lines are knots)")
+spline.plot.dim.cob <- ggplot() +
+  geom_ribbon(data = spline.dim.cob.pred, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", size = 1, alpha = 0.3) +
+  geom_line(data = spline.dim.cob.pred, aes(x = new, y = fit), color = "gray", alpha = 0.8, size = 1) +
+  geom_vline(xintercept = c(30, 60), size = 1, linetype = "dashed") +
+  geom_point(data = patients.dim.cob, aes(x = B, y = A), color = "blue") +
+  geom_point(data = controls.dim.cob, aes(x = B, y = A, shape = sample), size = 3, color = "red") +
+  xlab("Advia") + ylab("Architect") +
+  labs(title = "Regression splines assessment evaluation",
+       subtitle = "Architect vs. Advia (dashed lines are knots)")
+spline.plot.adv.dim <- ggplot() +
+  geom_ribbon(data = spline.adv.dim.pred, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", size = 1, alpha = 0.3) +
+  geom_line(data = spline.adv.dim.pred, aes(x = new, y = fit), color = "gray", alpha = 0.8, size = 1) +
+  geom_vline(xintercept = c(30, 60), size = 1, linetype = "dashed") +
+  geom_point(data = patients.adv.dim, aes(x = B, y = A), color = "blue") +
+  geom_point(data = controls.adv.dim, aes(x = B, y = A, shape = sample), size = 3, color = "red") +
+  xlab("Advia") + ylab("Architect") +
+  labs(title = "Regression splines assessment evaluation",
+       subtitle = "Architect vs. Advia (dashed lines are knots)")
+
+plot(spline.plot.arc.adv)
+plot(spline.plot.dim.cob)
+plot(spline.plot.adv.dim)
+
+### Residual plots ###
+res.plot.RS.arc.adv <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) +
+  geom_point(aes(x = fitted.values(spline.arc.adv.lm), y = residuals(spline.arc.adv.lm))) +
+  xlab("Fitted values") + ylab("Residuals") +
+  labs(title = "Residual plot - RS", subtitle = "Architect vs. Advia")
+res.plot.RS.dim.cob <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) +
+  geom_point(aes(x = fitted.values(spline.dim.cob.lm), y = residuals(spline.dim.cob.lm))) +
+  xlab("Fitted values") + ylab("Residuals") +
+  labs(title = "Residual plot - RS", subtitle = "Architect vs. Advia")
+res.plot.RS.adv.dim <- ggplot() +
+  geom_hline(yintercept = 0, size = 1) +
+  geom_point(aes(x = fitted.values(spline.adv.dim.lm), y = residuals(spline.adv.dim.lm))) +
+  xlab("Fitted values") + ylab("Residuals") +
+  labs(title = "Residual plot - RS", subtitle = "Architect vs. Advia")
+
+plot(res.plot.RS.arc.adv)
+plot(res.plot.RS.dim.cob)
+plot(res.plot.RS.adv.dim)
+
+# Formal tests #
+shapiro.test(spline.arc.adv.lm$residuals)
+shapiro.test(spline.dim.cob.lm$residuals)
+shapiro.test(spline.adv.dim.lm$residuals)
+
+bptest(spline.arc.adv.lm)
+bptest(spline.dim.cob.lm)
+bptest(spline.adv.dim.lm)
+
+dwtest(spline.arc.adv.lm)
+dwtest(spline.dim.cob.lm)
+dwtest(spline.adv.dim.lm)
+
+
+
+
+
+
+
 
 #11#### Simulation ############################################
 
@@ -1145,6 +1236,17 @@ plot(dr.plotP.should.ok1);plot(dr.plotP.should.ok2);plot(dr.plotP.should.ok3)
 plot(dr.plotP.should.ok4);plot(dr.plotP.should.ok5);plot(dr.plotP.should.ok6)
 plot(dr.plotP.should.ok7);plot(dr.plotP.should.ok8);plot(dr.plotP.should.ok9);plot(dr.plotP.should.ok10)
 
+shapiro.test(residuals(deming.lm(simP.should.ok1$A,simP.should.ok1$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok2$A,simP.should.ok2$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok3$A,simP.should.ok3$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok4$A,simP.should.ok4$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok5$A,simP.should.ok5$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok6$A,simP.should.ok6$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok7$A,simP.should.ok7$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok8$A,simP.should.ok8$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok9$A,simP.should.ok9$B,3)))
+shapiro.test(residuals(deming.lm(simP.should.ok10$A,simP.should.ok10$B,3)))
+
 
 ## Segmented regression ##
 SR.should.ok1 <- segmented.lm(lmP.should.ok1)
@@ -1219,11 +1321,208 @@ plot(plot.SR.should.ok7);plot(plot.SR.should.ok8);plot(plot.SR.should.ok9)
 plot(plot.SR.should.ok10)
 
 
+shapiro.test(SR.should.ok1$residuals) #
+shapiro.test(SR.should.ok2$residuals) #
+shapiro.test(SR.should.ok3$residuals)
+shapiro.test(SR.should.ok4$residuals) #
+shapiro.test(SR.should.ok5$residuals)
+shapiro.test(SR.should.ok6$residuals)
+shapiro.test(SR.should.ok7$residuals)
+shapiro.test(SR.should.ok8$residuals) #
+shapiro.test(SR.should.ok9$residuals)
+shapiro.test(SR.should.ok10$residuals)
+
+bptest(SR.should.ok1)
+bptest(SR.should.ok2)
+bptest(SR.should.ok3)
+bptest(SR.should.ok4) #
+bptest(SR.should.ok5)
+bptest(SR.should.ok6)
+bptest(SR.should.ok7)
+bptest(SR.should.ok8)
+bptest(SR.should.ok9)
+bptest(SR.should.ok10)
+
+## Larger intercepts ##
+set.seed(421) # 1st
+set.seed(422) # 2nd
+set.seed(423) # 3rd
+set.seed(424) # 4th
+set.seed(425) # 5th
+
+## Smaller intercepts ##
+set.seed(521) # 1st
+set.seed(522) # 2nd
+set.seed(523) # 3rd
+set.seed(524) # 4th
+set.seed(525) # 5th
 
 
+new <- replicate(10, sample(c(-1,1), 1) * runif(1,0,4))
 
 
+# Simulate clinical samples - Forced linear
+simP.should.ok1 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.11, c = new[1], CVX = 0.02, CVY = 0.04, lower.limit = 10, upper.limit = 90)
+simP.should.ok2 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.97, c = new[2], CVX = 0.03, CVY = 0.02, lower.limit = 10, upper.limit = 90)
+simP.should.ok3 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.98, c = new[3], CVX = 0.05, CVY = 0.01, lower.limit = 10, upper.limit = 90)
+simP.should.ok4 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.90, c = new[4], CVX = 0.03, CVY = 0.01, lower.limit = 10, upper.limit = 90)
+simP.should.ok5 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.99, c = new[5], CVX = 0.01, CVY = 0.05, lower.limit = 10, upper.limit = 90)
+simP.should.ok6 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.02, c = new[6], CVX = 0.05, CVY = 0.03, lower.limit = 10, upper.limit = 90)
+simP.should.ok7 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 0.98, c = new[7], CVX = 0.03, CVY = 0.07, lower.limit = 10, upper.limit = 90)
+simP.should.ok8 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.12, c = new[8], CVX = 0.01, CVY = 0.05, lower.limit = 10, upper.limit = 90)
+simP.should.ok9 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.09, c = new[9], CVX = 0.07, CVY = 0.08, lower.limit = 10, upper.limit = 90)
+simP.should.ok10 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.04, c = new[10], CVX = 0.03, CVY = 0.1, lower.limit = 10, upper.limit = 90)
+
+# Simulate control samples - Forced linear
+simC.should.ok1 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.11, c = new[1], CVX = 0.02, CVY = 0.04, lower.limit = 10, upper.limit = 90)
+simC.should.ok2 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.97, c = new[2], CVX = 0.03, CVY = 0.02, lower.limit = 10, upper.limit = 90)
+simC.should.ok3 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.98, c = new[3], CVX = 0.05, CVY = 0.01, lower.limit = 10, upper.limit = 90)
+simC.should.ok4 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.90, c = new[4], CVX = 0.03, CVY = 0.01, lower.limit = 10, upper.limit = 90)
+simC.should.ok5 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.99, c = new[5], CVX = 0.01, CVY = 0.05, lower.limit = 10, upper.limit = 90)
+simC.should.ok6 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.02, c = new[6], CVX = 0.05, CVY = 0.03, lower.limit = 10, upper.limit = 90)
+simC.should.ok7 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 0.98, c = new[7], CVX = 0.03, CVY = 0.07, lower.limit = 10, upper.limit = 90)
+simC.should.ok8 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.12, c = new[8], CVX = 0.01, CVY = 0.05, lower.limit = 10, upper.limit = 90)
+simC.should.ok9 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.09, c = new[9], CVX = 0.07, CVY = 0.08, lower.limit = 10, upper.limit = 90)
+simC.should.ok10 <- sim.data(pairs = 3, replicates = 3, a = 0, b = 1.04, c = new[10], CVX = 0.03, CVY = 0.1, lower.limit = 10, upper.limit = 90)
 
 
+### OLSR - log-log transformation ###
+log.lmP.should.ok1 <- lm(data = simP.should.ok1, formula = log(A) ~ log(B))
+log.lmP.should.ok2 <- lm(data = simP.should.ok2, formula = log(A) ~ log(B))
+log.lmP.should.ok3 <- lm(data = simP.should.ok3, formula = log(A) ~ log(B))
+log.lmP.should.ok4 <- lm(data = simP.should.ok4, formula = log(A) ~ log(B))
+log.lmP.should.ok5 <- lm(data = simP.should.ok5, formula = log(A) ~ log(B))
+log.lmP.should.ok6 <- lm(data = simP.should.ok6, formula = log(A) ~ log(B))
+log.lmP.should.ok7 <- lm(data = simP.should.ok7, formula = log(A) ~ log(B))
+log.lmP.should.ok8 <- lm(data = simP.should.ok8, formula = log(A) ~ log(B))
+log.lmP.should.ok9 <- lm(data = simP.should.ok9, formula = log(A) ~ log(B))
+log.lmP.should.ok10 <- lm(data = simP.should.ok10, formula = log(A) ~ log(B))
 
+### log-log - prediction ###
+log.predP.should.ok1 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok1, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok2 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok2, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok3 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok3, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok4 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok4, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok5 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok5, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok6 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok6, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok7 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok7, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok8 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok8, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok9 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok9, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+log.predP.should.ok10 <- data.table::data.table(new = 5:110, predict(log.lmP.should.ok10, newdata = list(B = 5:110), level = 0.99, interval = "prediction")) 
+
+### OLSR - Evaluation plots ###
+log.plotP.should.ok1 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok1, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok1, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok1, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok1, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok2 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok2, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok2, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok2, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok2, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok3 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok3, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok3, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok3, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok3, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok4 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok4, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok4, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok4, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok4, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok5 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok5, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok5, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok5, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok5, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok6 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok6, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok6, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok6, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok6, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok7 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok7, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok7, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok7, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok7, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok8 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok8, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok8, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok8, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok8, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok9 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok9, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok9, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok9, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok9, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+log.plotP.should.ok10 <- ggplot() +
+  geom_ribbon(data = log.predP.should.ok10, aes(x = log(new), ymin = lwr, ymax = upr), fill = "yellow", color = "black", alpha = .3, size = 1) +
+  geom_line(data = log.predP.should.ok10, aes(x = log(new), y = fit), size = 1) +
+  geom_point(data = simP.should.ok10, aes(x = log(B), y = log(A)), color = "blue") +
+  geom_point(data = simC.should.ok10, aes(x = log(B), y = log(A), shape = sample), color = "red", size = 4) +
+  ylab("Measurement method A") + xlab("Measurement method B") +
+  labs(title = "Measurement method A vs. Measurement method B")
+
+
+plot(log.plotP.should.ok1);plot(log.plotP.should.ok2);plot(log.plotP.should.ok3)
+plot(log.plotP.should.ok4);plot(log.plotP.should.ok5);plot(log.plotP.should.ok6)
+plot(log.plotP.should.ok7);plot(log.plotP.should.ok8);plot(log.plotP.should.ok9);plot(log.plotP.should.ok10)
+
+### Normality 
+shapiro.test(residuals(log.lmP.should.ok1)) #
+shapiro.test(residuals(log.lmP.should.ok2)) #
+shapiro.test(residuals(log.lmP.should.ok3)) 
+shapiro.test(residuals(log.lmP.should.ok4)) #
+shapiro.test(residuals(log.lmP.should.ok5)) #
+shapiro.test(residuals(log.lmP.should.ok6)) #
+shapiro.test(residuals(log.lmP.should.ok7)) #
+shapiro.test(residuals(log.lmP.should.ok8)) #
+shapiro.test(residuals(log.lmP.should.ok9)) #
+shapiro.test(residuals(log.lmP.should.ok10)) 
+
+### Equal variance tests ###
+bptest(log.lmP.should.ok1) #
+bptest(log.lmP.should.ok2) #
+bptest(log.lmP.should.ok3) #
+bptest(log.lmP.should.ok4) #
+bptest(log.lmP.should.ok5) #
+bptest(log.lmP.should.ok6) #
+bptest(log.lmP.should.ok7) #
+bptest(log.lmP.should.ok8) #
+bptest(log.lmP.should.ok9) #
+bptest(log.lmP.should.ok10) #
+
+###
+dwtest(log.lmP.should.ok1) #
+dwtest(log.lmP.should.ok2) #
+dwtest(log.lmP.should.ok3) 
+dwtest(log.lmP.should.ok4) #
+dwtest(log.lmP.should.ok5) #
+dwtest(log.lmP.should.ok6) 
+dwtest(log.lmP.should.ok7) #
+dwtest(log.lmP.should.ok8) #
+dwtest(log.lmP.should.ok9) #
+dwtest(log.lmP.should.ok10) #
+
+
+print(new)
 
