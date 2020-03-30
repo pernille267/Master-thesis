@@ -715,19 +715,19 @@ plot(res.plot.RS.arc.adv)
 plot(res.plot.RS.dim.cob)
 plot(res.plot.RS.adv.dim)
 
-# Formal tests #
+# Formal tests ##############################
 shapiro.test(spline.arc.adv.lm$residuals)
 shapiro.test(spline.dim.cob.lm$residuals)
 shapiro.test(spline.adv.dim.lm$residuals)
-
+#
 bptest(spline.arc.adv.lm)
 bptest(spline.dim.cob.lm)
 bptest(spline.adv.dim.lm)
-
+#
 dwtest(spline.arc.adv.lm)
 dwtest(spline.dim.cob.lm)
 dwtest(spline.adv.dim.lm)
-
+#############################################
 
 
 
