@@ -756,6 +756,65 @@ sim.data<- function(pairs, replicates, a, b, c, CVX, CVY, lower.limit, upper.lim
   return(tmp)
 }
 
+
+commutability.plot <- function(clinicals, controls, evaluation = "OLSR", level = 0.99)
+{
+  ev <- evaluation
+  clinicals <- clinicals %>%
+    dplyr::select(c("sample", "replicat", A, B)) %>%
+    drop_na() %>%
+    mutate(ld = log(A)-log(B), mm = (A + B)*0.5) %>%
+    mutate(lnA = log(A), lnB = log(B))
+  
+  
+  minst <- min(clinicals$A, clinicals$B)
+  størst <- max(clinicals$A, clinicals$B)
+  minstba <- min(clinicals$mm); størstba <- max(clinicals$mm)
+  
+  print(c(minstba, størstba))
+  print(names(clinicals))
+  
+  controls <- controls %>%
+    dplyr::select(c("sample", "replicat",A, B))%>%
+    mutate(ld = log(A)-log(B), mm = (A + B)*0.5) %>%
+    drop_na() %>%
+    mutate(lnA = log(A), lnB = log(B))
+  
+  #print(controls)
+  
+  obj <- lm(formula = A ~ B , data = clinicals)
+  obj1 <- lm(formula = log(A) ~ log(B), data = clinicals)
+  obj2 <- lm(formula = -ld ~ poly(mm,4), data = clinicals)
+  
+  pred.olsr <- data.table::data.table(new = (minst:størst*3)/3, predict(object = obj, level=0.99, interval = "prediction", newdata = list(B = (minst:størst*3)/3)))
+  pred.ll <- data.table::data.table(new = (minst:størst*3)/3, predict(object = obj1, level=0.99, interval = "prediction", newdata = list(B = (minst:størst*3)/3))) 
+  pred.ba <- data.table::data.table(new = (minstba:størstba*3)/3, predict(object = obj2, level=0.99, interval = "prediction", newdata = list(mm = (minstba:størstba*3)/3)))
+  olsr <- ggplot() + 
+    geom_ribbon(data = pred.olsr, aes(x = new, ymin = lwr, ymax = upr), alpha = 0.3, fill = "green", color = "black", size = 1) +
+    geom_smooth(data = clinicals, aes(x = B, y = A), method = "lm", color = "gray", alpha = 0.5) +
+    geom_point(data = clinicals, aes(x = B, y = A), color = "blue") +
+    geom_point(data = controls, aes(x = B, y = A, shape = sample), color = "red", cex = 3) +
+    xlab("Method B") + ylab("method B") + labs(title = "OLSR assessment method")
+  
+  ll <- ggplot() + geom_ribbon(data = pred.ll, aes(x = log(new), ymin = lwr, ymax = upr), alpha = 0.3, fill = "green", color = "black", size = 1) +
+    geom_smooth(data = clinicals, aes(x = lnB, y = lnA), method = "lm", color = "gray", alpha = 0.5) +
+    geom_point(data = clinicals, aes(x = lnB, y = lnA), color = "blue") +
+    geom_point(data = controls, aes(x = lnB, y = lnA, shape = sample), color = "red", cex = 3) +
+    xlab("ln(B)") + ylab("ln(A)") +
+    labs(title = "Log-log assessment method")
+  
+  #ba <- ggplot() 
+  
+  ifelse(test = ev=="OLSR", yes = plot(olsr), no = ifelse(test = ev=="LL", yes = plot(ll), no = 1))
+  
+}
+
+commutability.plot(simP.should.ok1, simC.should.ok1, evaluation = "OLSR")
+
+
+
+
+
 set.seed(3323)
 
 # Simulate clinical samples - Forced linear
