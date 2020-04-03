@@ -756,66 +756,121 @@ sim.data<- function(pairs, replicates, a, b, c, CVX, CVY, lower.limit, upper.lim
   return(tmp)
 }
 
-
-commutability.plot <- function(clinicals, controls, evaluation = "OLSR", level = 0.99)
+get.newdata <- function(method.A, method.B)
 {
-  ev <- evaluation
+  l <- min(method.A,method.B)
+  u <- max(method.A,method.B)
+  newdata <- (l:(u*5))/5
+  return(newdata)
+}
+
+
+check.controls <- function()
+{
+  return("yes")
+}
+
+get.df <- function(clinicals, controls)
+{
   clinicals <- clinicals %>%
     dplyr::select(c("sample", "replicat", A, B)) %>%
     drop_na() %>%
     mutate(ld = log(A)-log(B), mm = (A + B)*0.5) %>%
     mutate(lnA = log(A), lnB = log(B))
   
-  
-  minst <- min(clinicals$A, clinicals$B)
-  størst <- max(clinicals$A, clinicals$B)
-  minstba <- min(clinicals$mm); størstba <- max(clinicals$mm)
-  
-  print(c(minstba, størstba))
-  print(names(clinicals))
-  
   controls <- controls %>%
     dplyr::select(c("sample", "replicat",A, B))%>%
-    mutate(ld = log(A)-log(B), mm = (A + B)*0.5) %>%
     drop_na() %>%
+    mutate(ld = log(A)-log(B), mm = (A + B)*0.5) %>%
     mutate(lnA = log(A), lnB = log(B))
   
-  #print(controls)
+  return(list(controls = controls, clinicals = clinicals))
+}
+
+get.plot <- function(clinicals, controls, pred, object, title, xlab, ylab)
+{
+  ## Here we have to assume that clinicals and controls are in the appropriate form ##
+  ## It is expected that A, B, ld, mm, and sample (factor) is included here ##
+  ## Pred must be a data frame / data.table with names (new, fit, lwr, upr) ##
+  name <- strsplit((deparse(substitute(pred))),"_")[[1]][2]
+  print(name)
+  
+  clinicals<-clinicals%>%rename(y="A",x="B")
+  controls<-controls%>%rename(y="A",x="B")
+  if(name == "ba" | name == "ll")
+  {
+  clinicals <- clinicals %>%
+    mutate(y = unlist(ifelse(name=="ll"&name!="ba",list(lnA),list(ld))), x = unlist(ifelse(name=="ll",list(lnB),list(mm))))
+  controls <- controls %>%
+    mutate(y = unlist(ifelse(name=="ll"&name!="ba",list(lnA),list(ld))), x = unlist(ifelse(name=="ll",list(lnB),list(mm))))
+  }
+  
+  plot <- ggplot() + 
+    geom_ribbon(data = pred, aes(x = new, ymin = lwr, ymax = upr), alpha = 0.2, fill = "green", color = "black", size = 1) +
+    geom_line(data = pred, aes(x = new, y = fit), color = "gray", alpha = 1, linetype = 2) +
+    geom_point(data = clinicals, aes(x = x, y = y), color = "blue") +
+    geom_point(data = controls, aes(x = x, y = y, shape = sample), color = "red", cex = 3) +
+    xlab(xlab) + ylab(ylab) + labs(title = title)
+  
+  return(plot)
+}
+
+get.tests <- function(object,dr=FALSE)
+{
+  o<-object
+  pshapiro <- shapiro.test(residuals(o))$p.value
+  pbp<- bptest(o)$p.value
+  pdw <- dwtest(o)$p.value
+  results <- data.table::data.table(N = (pshapiro>0.05),
+                         H = (pbp>0.05),
+                         A = (pdw>0.05)) %>%
+    mutate(Total = ifelse(N + H + A == 3, TRUE,FALSE)) %>%
+    rename(Normality = "N", Homoscedasticity = "H", Auto.correlation = "A")
+  return(results)
+}
+
+get.tests(olsr.arc.adv)
+
+
+commutability.evaluation <- function(clinicals, controls, evaluation = "OLSR", level = 0.99)
+{
+  ev <- evaluation
+  fun <- get.df(clinicals,controls)
+  clinicals<-fun$clinicals;controls<-fun$controls
+  new <- get.newdata(clinicals$A,clinicals$B)
+  newba <- get.newdata(clinicals$ld,clinicals$mm) 
   
   obj <- lm(formula = A ~ B , data = clinicals)
   obj1 <- lm(formula = log(A) ~ log(B), data = clinicals)
-  obj2 <- lm(formula = -ld ~ poly(mm,4), data = clinicals)
+  obj2 <- lm(formula = ld ~ poly(mm,4), data = clinicals)
+  obj3 <- lm(formula = A ~ ns(B, knots = c(30,60)), data = clinicals)
   
-  pred.olsr <- data.table::data.table(new = (minst:størst*3)/3, predict(object = obj, level=0.99, interval = "prediction", newdata = list(B = (minst:størst*3)/3)))
-  pred.ll <- data.table::data.table(new = (minst:størst*3)/3, predict(object = obj1, level=0.99, interval = "prediction", newdata = list(B = (minst:størst*3)/3))) 
-  pred.ba <- data.table::data.table(new = (minstba:størstba*3)/3, predict(object = obj2, level=0.99, interval = "prediction", newdata = list(mm = (minstba:størstba*3)/3)))
-  olsr <- ggplot() + 
-    geom_ribbon(data = pred.olsr, aes(x = new, ymin = lwr, ymax = upr), alpha = 0.3, fill = "green", color = "black", size = 1) +
-    geom_smooth(data = clinicals, aes(x = B, y = A), method = "lm", color = "gray", alpha = 0.5) +
-    geom_point(data = clinicals, aes(x = B, y = A), color = "blue") +
-    geom_point(data = controls, aes(x = B, y = A, shape = sample), color = "red", cex = 3) +
-    xlab("Method B") + ylab("method B") + labs(title = "OLSR assessment method")
+  pred_olsr <- data.table::data.table(new = new, predict(object = obj, level=0.99, interval = "prediction", newdata = list(B = new)))
+  pred_ll <- data.table::data.table(new = log(new), predict(object = obj1, level=0.99, interval = "prediction", newdata = list(B = new)))
+  pred_ba <- data.table::data.table(new = newba, predict(object = obj2, level=0.99, interval = "prediction", newdata = list(mm = newba)))
+  pred_rs <- data.table::data.table(new = new, predict(object = obj3, level=0.99, interval = "prediction", newdata = list(B = new)))
   
-  ll <- ggplot() + geom_ribbon(data = pred.ll, aes(x = log(new), ymin = lwr, ymax = upr), alpha = 0.3, fill = "green", color = "black", size = 1) +
-    geom_smooth(data = clinicals, aes(x = lnB, y = lnA), method = "lm", color = "gray", alpha = 0.5) +
-    geom_point(data = clinicals, aes(x = lnB, y = lnA), color = "blue") +
-    geom_point(data = controls, aes(x = lnB, y = lnA, shape = sample), color = "red", cex = 3) +
-    xlab("ln(B)") + ylab("ln(A)") +
-    labs(title = "Log-log assessment method")
-  
-  #ba <- ggplot() 
-  
-  ifelse(test = ev=="OLSR", yes = plot(olsr), no = ifelse(test = ev=="LL", yes = plot(ll), no = 1))
-  
+  if (ev=="OLSR") {p <- get.plot(clinicals,controls,pred_olsr,obj,"OLSR","B","A")}
+  else if (ev=="LL") {p <- get.plot(clinicals,controls,pred_ll,obj1,"Log-log","ln(B)","ln(A)")} 
+  else if (ev=="BA") {p <- get.plot(clinicals,controls,pred_ba,obj2,"BA","MM","LD")}
+  else if (ev=="RS") {p <- get.plot(clinicals,controls,pred_rs,obj3,"RS","A","B")}
+  #plot(p)
+  get.tests(obj)
 }
 
-commutability.plot(simP.should.ok1, simC.should.ok1, evaluation = "OLSR")
+commutability.evaluation(sim.data(pairs = 25, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90), sim.data(pairs = 3, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90), evaluation = "OLSR")
+
 
 
 
 
 
 set.seed(3323)
+
+
+################################# Manual labour ########################
+
+
 
 # Simulate clinical samples - Forced linear
 simP.should.ok1 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
