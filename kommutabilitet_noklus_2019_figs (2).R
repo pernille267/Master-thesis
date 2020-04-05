@@ -63,7 +63,6 @@ patients.adv.dim <- patients_crp_org %>%
   mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
-  group_by(sample, replicat) %>%
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
 
 controls.adv.dim <- dplyr::select(controls_crp_org, sample, replicat, "Advia", "Dimension") %>% 
@@ -72,7 +71,6 @@ controls.adv.dim <- dplyr::select(controls_crp_org, sample, replicat, "Advia", "
   mutate_at(vars(sample,replicat), as.factor) %>%
   group_by(sample) %>%
   mutate(mA = mean(A), mB = mean(B)) %>%
-  group_by(sample, replicat) %>%
   mutate(mean.bias = (A + B)/2, log.diff = log(A) - log(B))
 
 
@@ -730,71 +728,72 @@ dwtest(spline.adv.dim.lm)
 #############################################
 
 
-
-
-
-
-
 #11#### Simulation ############################################
 
 set.seed(333)
 
 ### We are simulating data ###
 # can be used both for Patient Samples and Controls, and we can change param between them to test models
-sim.data<- function(pairs, replicates, a, b, c, CVX, CVY, lower.limit, upper.limit)
+sim.data<- function(pairs, replicates, a=0, b=1.05, c=1, CVX, CVY, lower.limit, upper.limit)
 {
   r <- replicates; n <- pairs
-  sample <- as.factor(rep(1:n, each = r))
-  replicat <- rep(1:r, each = 1, times = n)
-  y.true <- rep(runif(n, lower.limit, upper.limit), each = r)
+  sample <- (rep(1:n, each = r)) # Samples
+  replicat <- rep(1:r, each = 1, times = n) # Replicates
+  y.true <- rep(runif(n, lower.limit, upper.limit), each = r) # The sample space
   tmp <- data.table::data.table(sample, replicat, y.true) %>% 
-    mutate(x.true = a * y.true ^ 2 + b * y.true + c) %>%
+    mutate(x.true = a * y.true ^ 2 + b * y.true + c) %>% # Some linear or second degree polynomial relationship may be added
     rowwise() %>%
     mutate(A = y.true * (1 + rnorm(1, 0, CVY))) %>%
     mutate(B = x.true * (1 + rnorm(1, 0, CVX))) %>%
-    mutate(ld = log(A) - log(B), mm = (A+B)/2)
+    mutate(ld = log(A) - log(B), mm = (A+B)/2) %>%
+    mutate(lnA = log(A), lnB=log(B))
   return(tmp)
 }
 
+########################################################
+test <- sim.data(25, 3, 0, 1, 0, 0.04, 0.07, 10, 45)   #
+view(test)                                             #
+########################################################
+
+## Collects the relevant sample space for predictions
 get.newdata <- function(method.A, method.B)
 {
   l <- min(method.A,method.B)
   u <- max(method.A,method.B)
-  newdata <- (l:(u*5))/5
+  newdata <- seq(from=l-3, to = u+3, by=0.33)
   return(newdata)
 }
 
 
-check.controls <- function()
+## Transforms data frames with AR to MOR
+get.mor <- function(clinicals, controls)
 {
-  return("yes")
-}
-
-get.df <- function(clinicals, controls)
-{
+  # Transforms AR to MOR
   clinicals <- clinicals %>%
-    dplyr::select(c("sample", "replicat", A, B)) %>%
-    drop_na() %>%
-    mutate(ld = log(A)-log(B), mm = (A + B)*0.5) %>%
-    mutate(lnA = log(A), lnB = log(B))
+    group_by(sample) %>%
+    summarise_at(c("A","B"),mean,na.rm=TRUE) %>%
+    mutate(lnA=log(A), lnB = log(B), ld = log(A) - log(B), mm = 0.5*(A+B))
+  
+  confidence.intervals <- controls %>%
+    group_by(sample) %>%
+    mutate(lwr = mean(A) - qt(0.975,max(replicat)-1) * sd(A)/max((replicat) - 1), upr = mean(A) + qt(0.975,max(replicat)-1) * sd(A)/max((replicat) - 1)) %>%
+    summarise(lwr = mean(lwr), upr=mean(upr))
   
   controls <- controls %>%
-    dplyr::select(c("sample", "replicat",A, B))%>%
-    drop_na() %>%
-    mutate(ld = log(A)-log(B), mm = (A + B)*0.5) %>%
-    mutate(lnA = log(A), lnB = log(B))
+    group_by(sample) %>%
+    summarise_at(c("A","B"),mean,na.rm=TRUE) %>%
+    mutate(lnA=log(A), lnB = log(B), ld = log(A) - log(B), mm = 0.5*(A+B))
   
-  return(list(controls = controls, clinicals = clinicals))
+  return(list(controls = controls, clinicals = clinicals, confidence.intervals = confidence.intervals))
 }
 
-get.plot <- function(clinicals, controls, pred, object, title, xlab, ylab)
+##  This function is only made as a part of the commutability evalution function below. So it will not behave independently
+get.plot <- function(clinicals, controls, pred, object)
 {
-  ## Here we have to assume that clinicals and controls are in the appropriate form ##
+  ## Here we have to assume that clinicals and controls are on a very specific form ##
   ## It is expected that A, B, ld, mm, and sample (factor) is included here ##
   ## Pred must be a data frame / data.table with names (new, fit, lwr, upr) ##
   name <- strsplit((deparse(substitute(pred))),"_")[[1]][2]
-  print(name)
-  
   clinicals<-clinicals%>%rename(y="A",x="B")
   controls<-controls%>%rename(y="A",x="B")
   if(name == "ba" | name == "ll")
@@ -805,14 +804,14 @@ get.plot <- function(clinicals, controls, pred, object, title, xlab, ylab)
     mutate(y = unlist(ifelse(name=="ll"&name!="ba",list(lnA),list(ld))), x = unlist(ifelse(name=="ll",list(lnB),list(mm))))
   }
   
-  plot <- ggplot() + 
+  p <- ggplot() + 
     geom_ribbon(data = pred, aes(x = new, ymin = lwr, ymax = upr), alpha = 0.2, fill = "green", color = "black", size = 1) +
     geom_line(data = pred, aes(x = new, y = fit), color = "gray", alpha = 1, linetype = 2) +
     geom_point(data = clinicals, aes(x = x, y = y), color = "blue") +
     geom_point(data = controls, aes(x = x, y = y, shape = sample), color = "red", cex = 3) +
-    xlab(xlab) + ylab(ylab) + labs(title = title)
+    xlab("x") + ylab("y") + labs(title = paste(toupper(name), " evaluation method"))
   
-  return(plot)
+  return(p)
 }
 
 get.tests <- function(object,dr=FALSE)
@@ -829,43 +828,86 @@ get.tests <- function(object,dr=FALSE)
   return(results)
 }
 
-get.tests(olsr.arc.adv)
-
 
 commutability.evaluation <- function(clinicals, controls, evaluation = "OLSR", level = 0.99)
 {
-  ev <- evaluation
-  fun <- get.df(clinicals,controls)
-  clinicals<-fun$clinicals;controls<-fun$controls
-  new <- get.newdata(clinicals$A,clinicals$B)
-  newba <- get.newdata(clinicals$ld,clinicals$mm) 
+  mor<-get.mor(clinicals,controls)
+  clinicals<-mor$clinicals;controls<-mor$controls
+  ev <- evaluation # Specified method possibilities: "OLSR", "LL", "BA", "RS", and "DR"
+  new <- get.newdata(clinicals$A,clinicals$B) # Newdata for prediction
+  newba <- get.newdata(clinicals$ld,clinicals$mm) #Nedate for prediction (Bland Altman)
   
-  obj <- lm(formula = A ~ B , data = clinicals)
-  obj1 <- lm(formula = log(A) ~ log(B), data = clinicals)
-  obj2 <- lm(formula = ld ~ poly(mm,4), data = clinicals)
-  obj3 <- lm(formula = A ~ ns(B, knots = c(30,60)), data = clinicals)
+  obj <- lm(formula = A ~ B , data = clinicals) #OLSR lm
+  obj1 <- lm(formula = log(A) ~ log(B), data = clinicals) #LL lm
+  obj2 <- lm(formula = ld ~ poly(mm,4), data = clinicals) #BA lm
+  obj3 <- lm(formula = A ~ ns(B, knots = c(30,60)), data = clinicals) #RS lm
   
+  # Prediction bands
   pred_olsr <- data.table::data.table(new = new, predict(object = obj, level=0.99, interval = "prediction", newdata = list(B = new)))
   pred_ll <- data.table::data.table(new = log(new), predict(object = obj1, level=0.99, interval = "prediction", newdata = list(B = new)))
   pred_ba <- data.table::data.table(new = newba, predict(object = obj2, level=0.99, interval = "prediction", newdata = list(mm = newba)))
   pred_rs <- data.table::data.table(new = new, predict(object = obj3, level=0.99, interval = "prediction", newdata = list(B = new)))
   
-  if (ev=="OLSR") {p <- get.plot(clinicals,controls,pred_olsr,obj,"OLSR","B","A")}
-  else if (ev=="LL") {p <- get.plot(clinicals,controls,pred_ll,obj1,"Log-log","ln(B)","ln(A)")} 
-  else if (ev=="BA") {p <- get.plot(clinicals,controls,pred_ba,obj2,"BA","MM","LD")}
-  else if (ev=="RS") {p <- get.plot(clinicals,controls,pred_rs,obj3,"RS","A","B")}
-  #plot(p)
-  get.tests(obj)
+  # which method to use
+  if (ev=="OLSR") {p <- get.plot(clinicals,controls,pred_olsr,obj)}
+  else if (ev=="LL") {p <- get.plot(clinicals,controls,pred_ll,obj1)} 
+  else if (ev=="BA") {p <- get.plot(clinicals,controls,pred_ba,obj2)}
+  else if (ev=="RS") {p <- get.plot(clinicals,controls,pred_rs,obj3)}
+  return(list(plot=p, linear.assumptions = get.tests(obj)))
 }
 
-commutability.evaluation(sim.data(pairs = 25, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90), sim.data(pairs = 3, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90), evaluation = "OLSR")
+## Needs to be generalized ##
+check.controls <- function(clinicals,controls,confidence.intervals)
+{
+  x <- controls$B # x-values of control material measures
+  obj<-lm(data=clinicals,A~B) # linear model
+  prediction <- data.table::data.table(predict(object = obj, newdata=list(B=x), level = 0.99, interval = "prediction")) %>%
+    dplyr::select(lwr,upr,-fit) %>%
+    mutate(low = confidence.intervals$lwr, high = confidence.intervals$upr)  %>%
+    rowwise() %>%
+    summarise(commutable.low = low <= upr & low >= lwr & high <= upr & high >= lwr)
+  prediction<-sum(unlist(prediction))/length(x)
+  return(unname(prediction))
+}
 
+P <- sim.data(25,6,0,1,0,0.05,0.05,20,60)
+C <- sim.data(3,6,0,1,0,0.05,0.05,20,60)
 
+mor <- get.mor(P,C)
+morP<-mor$clinicals
+morC<-mor$controls
+morCI<-mor$confidence.intervals
 
+## OLRS method ##
+set.seed(2)
+a<-0;b<-1;c<-0;r<-10
+N<-1000
+simP<-(replicate(N,list(sim.data(25,r,a,b,c,0.06,0.06,20,60))))
+simC<-(replicate(N,list(sim.data(3,r,a,b,c,0.06,0.06,20,60))))
 
+mor<-list()
+for (i in 1:N)
+{
+  mor[[i]] <- get.mor(simP[[i]], simC[[i]])
+}
 
+controls<-list()
+patients<-list()
+confidence.intervals<-list()
+for (i in 1:N)
+{
+  controls[[i]] <- mor[[i]]$controls
+  patients[[i]] <- mor[[i]]$clinicals
+  confidence.intervals[[i]] <- mor[[i]]$confidence.intervals
+}
 
-set.seed(3323)
+checks <- c()
+for (i in 1:N)
+{
+  checks[i] <- check.controls(clinicals = patients[[i]], controls = controls[[i]], confidence.intervals = confidence.intervals[[i]])
+}
+
+(sum(floor(checks)))
 
 
 ################################# Manual labour ########################
