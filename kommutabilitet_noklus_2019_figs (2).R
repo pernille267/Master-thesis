@@ -522,19 +522,20 @@ k3<-data.table::data.table(fitted = deming.lm(patients.adv.dim$A, patients.adv.d
 
 ## Residual plots - DR ##
 
-ggplot() + geom_hline(yintercept = 0, size = 1) +
+dr1<-ggplot() + geom_hline(yintercept = 0, size = 1) +
   geom_point(data = k1, aes(x = fitted, y = residuals)) +
   ylab("Residuals") + xlab("Fitted values") +
-  labs(title = "Residual vs. fitted plot", subtitle = "Architect vs. Advia")
-ggplot() + geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Deming regression - Residual plot", subtitle = "Architect vs. Advia")
+dr2<-ggplot() + geom_hline(yintercept = 0, size = 1) +
   geom_point(data = k2, aes(x = fitted, y = residuals)) +
   ylab("Residuals") + xlab("Fitted values") +
-  labs(title = "Residual vs. fitted plot", subtitle = "Dimension vs. Cobas")
-ggplot() + geom_hline(yintercept = 0, size = 1) +
+  labs(title = "Deming regression - Residual plot", subtitle = "Dimension vs. Cobas")
+dr3<-ggplot() + geom_hline(yintercept = 0, size = 1) +
   geom_point(data = k3, aes(x = fitted, y = residuals)) +
   ylab("Residuals") + xlab("Fitted values") +
-  labs(title = "Residual vs. fitted plot", subtitle = "Advia vs. Dimension")
+  labs(title = "Deming regression - Residual plot", subtitle = "Advia vs. Dimension")
 
+grid.arrange(dr1,dr2,dr3,nrow=1)
 
 
 
@@ -609,35 +610,42 @@ bootstrap.predictInterval <- function(method.A, method.B, resamples, level, upr,
   return(data.table::data.table(new = new, pred = df[,3], lwr=df[,1] + df[,3],upr=df[,2] + df[,3]))
 }
 
-pidr.dim.cob <- bootstrap.predictInterval(patients.dim.cob$A,patients.dim.cob$B, 2500, 0.99, 100, 0)
-pidr.arc.adv <- bootstrap.predictInterval(patients.arc.adv$A,patients.arc.adv$B, 2500, 0.99, 100, 0)
-pidr.adv.dim <- bootstrap.predictInterval(patients.adv.dim$A,patients.adv.dim$B, 2500, 0.99, 100, 0)
+
+## Newdata ##
+get.newdata(patients.arc.adv$A,patients.arc.adv$B)
+get.newdata(patients.dim.cob$A,patients.dim.cob$B)
+get.newdata(patients.adv.dim$A,patients.adv.dim$B)
+
+
+pidr.dim.cob <- bootstrap.predictInterval(patients.dim.cob$A,patients.dim.cob$B, 10^4, 0.99, 87.3, 1.5)
+pidr.arc.adv <- bootstrap.predictInterval(patients.arc.adv$A,patients.arc.adv$B, 10^4, 0.99, 89.2, 1.4)
+pidr.adv.dim <- bootstrap.predictInterval(patients.adv.dim$A,patients.adv.dim$B, 10^4, 0.99, 89.3, 1.5)
 
 
 #10#### Plots of deming with 99% prediction interval ######################
 plot6a <- ggplot() +
-  geom_ribbon(data = pidr.dim.cob, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_ribbon(data = pidr.dim.cob, aes(x = new, ymin = lwr, ymax = upr), size=1,fill = "green", color = "black", alpha = 0.3) +
   geom_line(data = pidr.dim.cob, aes(x=new,y=pred)) +
   geom_point(data = patients.dim.cob, aes(x = B, y = A), color = "blue", alpha = 0.8) +
-  geom_point(data = controls.dim.cob, aes(x = B, y = A), color = "red") +
+  geom_point(data = controls.dim.cob, aes(x = B, y = A, shape=sample), size=3, color = "red") +
   xlab("Cobas") +
   ylab("Dimension") + 
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
 
 plot6b <- ggplot() +
-  geom_ribbon(data = pidr.arc.adv, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_ribbon(data = pidr.arc.adv, aes(x = new, ymin = lwr, ymax = upr), size=1,fill = "green", color = "black", alpha = 0.3) +
   geom_line(data = pidr.arc.adv, aes(x = new, y = pred), size = 0.2, color = "black") +
   geom_point(data = patients.arc.adv, aes(x = B, y = A), color = "blue", alpha = 0.8) +
-  geom_point(data = controls.arc.adv, aes(x = B, y = A), color = "red") +
+  geom_point(data = controls.arc.adv, aes(x = B, y = A,shape=sample), color = "red") +
   xlab("Advia") +
   ylab("Architect") + 
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
 
 plot6c <- ggplot() +
-  geom_ribbon(data = pidr.adv.dim, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", alpha = 0.3) +
+  geom_ribbon(data = pidr.adv.dim, aes(x = new, ymin = lwr, ymax = upr), size=1, fill = "green", color = "black", alpha = 0.3) +
   geom_line(data = pidr.adv.dim, aes(x = new, y = pred), size = 0.2, color = "black") +
   geom_point(data = patients.adv.dim, aes(x = B, y = A), color = "blue", alpha = 0.8) +
-  geom_point(data = controls.adv.dim, aes(x = B, y = A), color = "red") +
+  geom_point(data = controls.adv.dim, aes(x = B, y = A,shape=sample), size = 3, color = "red") +
   xlab("Dimension") +
   ylab("Advia") + 
   labs(title = "Deming regression", subtitle = "green region is 99% prediction bands")
@@ -675,18 +683,18 @@ spline.plot.dim.cob <- ggplot() +
   geom_vline(xintercept = c(30, 60), size = 1, linetype = "dashed") +
   geom_point(data = patients.dim.cob, aes(x = B, y = A), color = "blue") +
   geom_point(data = controls.dim.cob, aes(x = B, y = A, shape = sample), size = 3, color = "red") +
-  xlab("Advia") + ylab("Architect") +
+  xlab("Cobas") + ylab("Dimension") +
   labs(title = "Regression splines assessment evaluation",
-       subtitle = "Architect vs. Advia (dashed lines are knots)")
+       subtitle = "Dimension vs. Cobas (dashed lines are knots)")
 spline.plot.adv.dim <- ggplot() +
   geom_ribbon(data = spline.adv.dim.pred, aes(x = new, ymin = lwr, ymax = upr), fill = "green", color = "black", size = 1, alpha = 0.3) +
   geom_line(data = spline.adv.dim.pred, aes(x = new, y = fit), color = "gray", alpha = 0.8, size = 1) +
   geom_vline(xintercept = c(30, 60), size = 1, linetype = "dashed") +
   geom_point(data = patients.adv.dim, aes(x = B, y = A), color = "blue") +
   geom_point(data = controls.adv.dim, aes(x = B, y = A, shape = sample), size = 3, color = "red") +
-  xlab("Advia") + ylab("Architect") +
+  xlab("Dimension") + ylab("Advia") +
   labs(title = "Regression splines assessment evaluation",
-       subtitle = "Architect vs. Advia (dashed lines are knots)")
+       subtitle = "Advia vs. Dimension (dashed lines are knots)")
 
 plot(spline.plot.arc.adv)
 plot(spline.plot.dim.cob)
@@ -702,16 +710,18 @@ res.plot.RS.dim.cob <- ggplot() +
   geom_hline(yintercept = 0, size = 1) +
   geom_point(aes(x = fitted.values(spline.dim.cob.lm), y = residuals(spline.dim.cob.lm))) +
   xlab("Fitted values") + ylab("Residuals") +
-  labs(title = "Residual plot - RS", subtitle = "Architect vs. Advia")
+  labs(title = "Residual plot - RS", subtitle = "Dimension vs. Cobas")
 res.plot.RS.adv.dim <- ggplot() +
   geom_hline(yintercept = 0, size = 1) +
   geom_point(aes(x = fitted.values(spline.adv.dim.lm), y = residuals(spline.adv.dim.lm))) +
   xlab("Fitted values") + ylab("Residuals") +
-  labs(title = "Residual plot - RS", subtitle = "Architect vs. Advia")
+  labs(title = "Residual plot - RS", subtitle = "Advia vs. Dimension")
 
 plot(res.plot.RS.arc.adv)
 plot(res.plot.RS.dim.cob)
 plot(res.plot.RS.adv.dim)
+
+grid.arrange(res.plot.RS.arc.adv,res.plot.RS.dim.cob,res.plot.RS.adv.dim, nrow=1)
 
 # Formal tests ##############################
 shapiro.test(spline.arc.adv.lm$residuals)
@@ -776,8 +786,7 @@ get.mor <- function(clinicals, controls)
   
   confidence.intervals <- controls %>%
     group_by(sample) %>%
-    mutate(lwr = mean(A) - qt(0.975,max(replicat)-1) * sd(A)/max((replicat) - 1), upr = mean(A) + qt(0.975,max(replicat)-1) * sd(A)/max((replicat) - 1)) %>%
-    summarise(lwr = mean(lwr), upr=mean(upr))
+    summarise(mA=mean(A), mB=mean(B))
   
   controls <- controls %>%
     group_by(sample) %>%
@@ -829,6 +838,9 @@ get.tests <- function(object,dr=FALSE)
 }
 
 
+get.tests(patients[[2]])
+
+
 commutability.evaluation <- function(clinicals, controls, evaluation = "OLSR", level = 0.99)
 {
   mor<-get.mor(clinicals,controls)
@@ -863,9 +875,9 @@ check.controls <- function(clinicals,controls,confidence.intervals)
   obj<-lm(data=clinicals,A~B) # linear model
   prediction <- data.table::data.table(predict(object = obj, newdata=list(B=x), level = 0.99, interval = "prediction")) %>%
     dplyr::select(lwr,upr,-fit) %>%
-    mutate(low = confidence.intervals$lwr, high = confidence.intervals$upr)  %>%
+    mutate(mA = confidence.intervals$mA, mB = confidence.intervals$mB)  %>%
     rowwise() %>%
-    summarise(commutable.low = low <= upr & low >= lwr & high <= upr & high >= lwr)
+    summarise(commutable.low = mA <= upr & mA >= lwr & mB <= upr & mB >= lwr)
   prediction<-sum(unlist(prediction))/length(x)
   return(unname(prediction))
 }
@@ -879,10 +891,10 @@ morC<-mor$controls
 morCI<-mor$confidence.intervals
 
 ## OLRS method ##
-set.seed(2)
-a<-0;b<-1;c<-0;r<-10
+set.seed(4)
+a<-0;b<-1;c<-0;r<-6
 N<-1000
-simP<-(replicate(N,list(sim.data(25,r,a,b,c,0.06,0.06,20,60))))
+simP<-(replicate(N,list(sim.data(50,r,a,b,c,0.06,0.06,20,60))))
 simC<-(replicate(N,list(sim.data(3,r,a,b,c,0.06,0.06,20,60))))
 
 mor<-list()
@@ -902,17 +914,17 @@ for (i in 1:N)
 }
 
 checks <- c()
+tests <- c()
 for (i in 1:N)
 {
   checks[i] <- check.controls(clinicals = patients[[i]], controls = controls[[i]], confidence.intervals = confidence.intervals[[i]])
+  tests[i] <- get.tests(lm(data=patients[[i]], formula = A~B))$Auto.correlation
 }
 
-(sum(floor(checks)))
-
+(sum(floor(checks)))/N
+(sum(floor(tests)))/N
 
 ################################# Manual labour ########################
-
-
 
 # Simulate clinical samples - Forced linear
 simP.should.ok1 <- sim.data(pairs = 25, replicates = 3, a = 0, b = 1.11, c = 2.4, CVX = 0.02, CVY = 0.04, lower.limit = 5, upper.limit = 90)
